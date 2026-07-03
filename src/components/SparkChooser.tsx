@@ -30,7 +30,7 @@ export function SparkChooser({
       opts: { title: "Today's Nudge", prompt: nudge },
     },
     { type: 'free', emoji: '🖊️', title: 'Free Writing', blurb: 'Anything you want — your page!' },
-    { type: 'guided', emoji: '✨', title: 'Guided Writing', blurb: 'Coming soon!', soon: true },
+    { type: 'guided', emoji: '✨', title: 'Guided Writing', blurb: 'A prompt made just for your day!' },
     { type: 'drawing', emoji: '🎨', title: 'Drawing', blurb: 'Coming soon!', soon: true },
   ]
 

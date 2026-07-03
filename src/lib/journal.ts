@@ -31,6 +31,10 @@ export interface JournalSection {
   sentenceCount: number
   activeWPM: number | null // silent typing fluency (spec §6.2) — parent-only, never shown to Aria
   reviewCount: number // bumped when a review lands (drives reviewedSections in totals)
+  genre: string // guided only: narrative | opinion | informative
+  standardsTags: string[]
+  sparkleWords: { offered: string[]; used: string[] }
+  planningChips: string[]
   status: SectionStatus
   clientId: string
   createdAt?: unknown
@@ -113,10 +117,19 @@ export async function saveCheckin(dateKey: string, checkin: Checkin): Promise<vo
   await updateDoc(dayRef(dateKey), { checkin, updatedAt: serverTimestamp() })
 }
 
+export interface CreateSectionOpts {
+  title?: string
+  prompt?: string
+  genre?: string
+  standardsTags?: string[]
+  sparkleWords?: string[]
+  planningChips?: string[]
+}
+
 export async function createSection(
   dateKey: string,
   type: SectionType,
-  opts: { title?: string; prompt?: string } = {},
+  opts: CreateSectionOpts = {},
 ): Promise<string> {
   await ensureDay(dateKey)
   const ref = doc(sectionsRef(dateKey))
@@ -131,6 +144,10 @@ export async function createSection(
     sentenceCount: 0,
     activeWPM: null,
     reviewCount: 0,
+    genre: opts.genre ?? '',
+    standardsTags: opts.standardsTags ?? [],
+    sparkleWords: { offered: opts.sparkleWords ?? [], used: [] },
+    planningChips: opts.planningChips ?? [],
     status: 'draft',
     clientId,
   }
@@ -145,7 +162,7 @@ export async function saveSectionText(
   html: string,
   plainText: string,
   status: SectionStatus = 'draft',
-  extras: { activeWPM?: number | null } = {},
+  extras: { activeWPM?: number | null; sparkleUsed?: string[] } = {},
 ): Promise<void> {
   await updateDoc(doc(sectionsRef(dateKey), sectionId), {
     text: html,
@@ -155,6 +172,7 @@ export async function saveSectionText(
     status,
     clientId,
     ...(extras.activeWPM != null ? { activeWPM: Math.round(extras.activeWPM) } : {}),
+    ...(extras.sparkleUsed?.length ? { 'sparkleWords.used': extras.sparkleUsed } : {}),
     updatedAt: serverTimestamp(),
   })
 }

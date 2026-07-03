@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { SectionEditor } from '@/components/SectionEditor'
 import { CheckIn } from '@/components/CheckIn'
 import { SparkChooser } from '@/components/SparkChooser'
+import { GuidedSetup } from '@/components/GuidedSetup'
 import { dateKeyFor } from '@/lib/dateKey'
 import {
   computeTotals,
@@ -34,6 +35,7 @@ export function Today() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [checkingIn, setCheckingIn] = useState(false)
   const [choosing, setChoosing] = useState(false)
+  const [guidedSetup, setGuidedSetup] = useState(false)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
@@ -80,6 +82,11 @@ export function Today() {
   }
 
   async function onPickSpark(type: SectionType, opts?: { title?: string; prompt?: string }) {
+    if (type === 'guided') {
+      setChoosing(false)
+      setGuidedSetup(true)
+      return
+    }
     setBusy(true)
     try {
       const id = await createSection(dateKey, type, opts)
@@ -96,6 +103,23 @@ export function Today() {
 
   if (checkingIn) {
     return <CheckIn dateKey={dateKey} onDone={onCheckinDone} />
+  }
+
+  if (guidedSetup) {
+    return (
+      <GuidedSetup
+        dateKey={dateKey}
+        checkin={day?.checkin ?? null}
+        onReady={(id) => {
+          setGuidedSetup(false)
+          setEditingId(id)
+        }}
+        onBack={() => {
+          setGuidedSetup(false)
+          setChoosing(true)
+        }}
+      />
+    )
   }
 
   if (choosing) {

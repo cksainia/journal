@@ -67,12 +67,24 @@ service cloud.firestore {
 
         match /reviews/{reviewId} {
           allow read: if isFamily();
-          // Reviews are append-only for the child (mock service writes them
-          // client-side in Phases 1–3); only the parent can amend/remove.
+          // The child appends reviews and may update ONLY her correction
+          // outcomes and re-check results; the review body is immutable to
+          // her. Parent has full control.
           allow create: if isParent() || (isChild() && ownsDay());
-          allow update, delete: if isParent();
+          allow update: if isParent()
+            || (isChild() && ownsDay()
+                && request.resource.data.diff(resource.data).affectedKeys()
+                     .hasOnly(['correctionOutcomes', 'postFixRecheck']));
+          allow delete: if isParent();
         }
       }
+    }
+
+    // ── Journal app meta (settings, word shelf, favorites, parent notes) ──
+    // Family-writable; parent-only knobs inside are gated by the PIN in the
+    // UI (an acceptable UX gate for non-security settings per spec §11).
+    match /journalMeta/{familyId} {
+      allow read, write: if isFamily();
     }
 
     // ── Weekly insights & prompt bank ──────────────────────────────────

@@ -96,10 +96,23 @@ describe('sections — the no-hard-delete rule', () => {
     await assertSucceeds(deleteDoc(doc(asParent(), ...sectionPath)))
   })
 
-  it('child can append a review but not amend or remove it', async () => {
+  it('child can append a review and record outcomes, but not amend the review body', async () => {
     const reviewPath = ['journalDays', DAY_ID, 'sections', 's1', 'reviews', 'r1'] as const
-    await assertSucceeds(setDoc(doc(asChild(), ...reviewPath), { schemaVersion: '1.0' }))
+    await assertSucceeds(
+      setDoc(doc(asChild(), ...reviewPath), { schemaVersion: '1.0', correctionOutcomes: {} }),
+    )
+    // Her agency data IS hers to update…
+    await assertSucceeds(
+      updateDoc(doc(asChild(), ...reviewPath), { 'correctionOutcomes.c1': 'used' }),
+    )
+    await assertSucceeds(
+      updateDoc(doc(asChild(), ...reviewPath), { postFixRecheck: { spelling: 0, grammar: 1 } }),
+    )
+    // …the review body is not.
     await assertFails(updateDoc(doc(asChild(), ...reviewPath), { schemaVersion: '2.0' }))
+    await assertFails(
+      updateDoc(doc(asChild(), ...reviewPath), { 'correctionOutcomes.c2': 'used', schemaVersion: '2.0' }),
+    )
     await assertFails(deleteDoc(doc(asChild(), ...reviewPath)))
     await assertSucceeds(deleteDoc(doc(asParent(), ...reviewPath)))
   })

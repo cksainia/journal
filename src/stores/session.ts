@@ -10,6 +10,7 @@ import {
 import { doc, getDoc } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase'
 import { FAMILY_ID, PARENT_UID, CHILD_UID } from '@/lib/constants'
+import { startSettingsSync, stopSettingsSync } from './settings'
 
 export type Role = 'parent' | 'child'
 
@@ -66,6 +67,7 @@ export const useSession = create<SessionState>((set) => ({
 
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
+    stopSettingsSync()
     useSession.setState({ status: 'signedOut', user: null, role: null })
     return
   }
@@ -75,5 +77,6 @@ onAuthStateChanged(auth, async (user) => {
     await fbSignOut(auth)
     return
   }
+  startSettingsSync()
   useSession.setState({ status: 'ready', user, role, signInError: null })
 })

@@ -129,4 +129,6 @@ export interface ClaudeService {
   generateGuidedPrompt(input: GuidedPromptInput): Promise<GuidedPrompt>
   reviewEntry(input: ReviewInput): Promise<Review>
   generateWeeklyInsights(input: WeeklyInsightsInput): Promise<WeeklyInsights>
+  /** "Keep going?" — ONE encouraging follow-up question, never a new assignment (§4.2A). */
+  followUpQuestion(plainText: string): Promise<string>
 }
