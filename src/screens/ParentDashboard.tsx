@@ -390,6 +390,7 @@ function Dashboard({ email, onSignOut }: { email: string; onSignOut: () => void 
       <ParentNotes meta={meta} weekStart={weekStart} />
 
       {/* 4 — raw data / settings */}
+      <ExportsCard bundles={bundles} />
       <SyncStatusCard />
       <SettingsCard />
       <Card>
@@ -518,6 +519,38 @@ function SettingsCard() {
             </Button>
           </div>
         </div>
+      </div>
+    </Card>
+  )
+}
+
+function ExportsCard({ bundles }: { bundles: DayBundle[] }) {
+  const [includeArchived, setIncludeArchived] = useState(false)
+  return (
+    <Card>
+      <CardTitle className="text-base">Exports & keepsake</CardTitle>
+      <p className="text-muted text-xs mt-1">
+        Exports cover the selected date range. Archived entries are excluded unless you opt in.
+      </p>
+      <label className="flex items-center gap-2 mt-2 text-sm font-bold">
+        <input
+          type="checkbox"
+          checked={includeArchived}
+          onChange={(e) => setIncludeArchived(e.target.checked)}
+          className="size-4 accent-teal"
+        />
+        Include archived entries
+      </label>
+      <div className="flex flex-wrap gap-2 mt-3">
+        <Button size="sm" variant="secondary" onClick={() => void import('@/lib/exports').then((m) => m.exportCsv(bundles))}>
+          📊 CSV stats
+        </Button>
+        <Button size="sm" variant="secondary" onClick={() => void import('@/lib/exports').then((m) => m.exportJson(bundles, includeArchived))}>
+          💾 JSON backup
+        </Button>
+        <Button size="sm" variant="secondary" onClick={() => void import('@/lib/exports').then((m) => m.openKeepsake(bundles, includeArchived))}>
+          📖 Printable keepsake
+        </Button>
       </div>
     </Card>
   )

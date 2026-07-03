@@ -158,6 +158,7 @@ export function SectionEditor({
     clearTimeout(timer.current)
     stopSpeaking()
     await persist('saved')
+    if (counts.words > 0) celebrate({ small: counts.sentences < 3 }) // save moment (spec §4.6)
     onClose()
   }
 
