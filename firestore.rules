@@ -1,0 +1,88 @@
+rules_version = '2';
+
+// Aria's Journal — Firestore security rules (project aria-tracker-c89d3).
+//
+// ⚠️ DEPLOY GATE: these rules also cover the Summer Tracker's documents
+// (families/aria, families/aria-claims). Before the FIRST production deploy,
+// diff against the console-managed rules currently live and fold in anything
+// they enforce that this file doesn't. Until then: emulator use only.
+//
+// Roles: hardcoded family UIDs (house style, same accounts as the tracker)
+// with families/aria/members/{uid} role docs as the extensible path.
+// The parent PIN in the UI is a UX gate — THIS file is the security boundary.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function parentUid() { return 'ForoefZlHRbJIwZgCraAxAUfq1n2'; }
+    function childUid()  { return 'O93lhqGLBye4TLzYrREpRaEBm972'; }
+
+    function signedIn() { return request.auth != null; }
+
+    function memberPath() {
+      return /databases/$(database)/documents/families/aria/members/$(request.auth.uid);
+    }
+    function memberRole() {
+      return exists(memberPath()) ? get(memberPath()).data.role : '';
+    }
+
+    function isParent() {
+      return signedIn() && (request.auth.uid == parentUid() || memberRole() == 'parent');
+    }
+    function isChild() {
+      return signedIn() && (request.auth.uid == childUid() || memberRole() == 'child');
+    }
+    function isFamily() { return isParent() || isChild(); }
+
+    // ── Summer Tracker documents (preserve existing behavior) ──────────
+    // families/aria        — confirmed state, parent-only writes
+    // families/aria-claims — Aria's self-marks; any family member writes
+    //                        (the journal's sync adapter writes journal.<dateKey> here)
+    match /families/{famDoc} {
+      allow read: if isFamily();
+      allow write: if (famDoc == 'aria' && isParent())
+                   || (famDoc == 'aria-claims' && isFamily());
+
+      match /members/{uid} {
+        allow read: if isFamily();
+        allow write: if isParent();
+      }
+    }
+
+    // ── Journal days ────────────────────────────────────────────────────
+    // Doc id: {familyId}_{childUid}_{yyyyMMdd}. The child may only touch
+    // days keyed to her own uid; the parent may touch (and delete) any.
+    match /journalDays/{dayId} {
+      function ownsDay() { return dayId.split('_')[1] == request.auth.uid; }
+
+      allow read: if isFamily();
+      allow create, update: if isParent() || (isChild() && ownsDay());
+      allow delete: if isParent();
+
+      match /sections/{sectionId} {
+        allow read: if isFamily();
+        allow create, update: if isParent() || (isChild() && ownsDay());
+        // The child can archive (status: "archived") but NEVER hard-delete.
+        allow delete: if isParent();
+
+        match /reviews/{reviewId} {
+          allow read: if isFamily();
+          // Reviews are append-only for the child (mock service writes them
+          // client-side in Phases 1–3); only the parent can amend/remove.
+          allow create: if isParent() || (isChild() && ownsDay());
+          allow update, delete: if isParent();
+        }
+      }
+    }
+
+    // ── Weekly insights & prompt bank ──────────────────────────────────
+    match /weeklyInsights/{insightId} {
+      allow read: if isParent();     // parent-only surface (child gets her voice card via app logic later)
+      allow write: if isParent();
+    }
+    match /prompt_bank/{promptId} {
+      allow read: if isFamily();
+      allow write: if isParent();
+    }
+  }
+}
