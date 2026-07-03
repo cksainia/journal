@@ -1,6 +1,6 @@
 @import "tailwindcss";
-/* Handwriting fonts — bundled locally so the PWA stays fully offline-capable */
-@import "@fontsource/patrick-hand";
+/* Handwriting font (Google Caveat) — bundled locally so the PWA stays offline-capable */
+@import "@fontsource/caveat";
 @import "@fontsource/caveat/700.css";
 
 /* ── Design tokens ─────────────────────────────────────────────
@@ -63,8 +63,8 @@ html, body {
 /* ── My Journal: the paper notebook ─────────────────────────────────────
    Ruled paper with punched holes and a pink margin line; handwriting sits
    exactly on the 28px rule grid. 9-year-old-girl stationery energy. */
-.font-hand { font-family: "Patrick Hand", cursive; }
-.font-hand-display { font-family: "Caveat", cursive; }
+.font-hand { font-family: "Caveat", cursive; }
+.font-hand-display { font-family: "Caveat", cursive; font-weight: 700; }
 
 .paper-page {
   position: relative;

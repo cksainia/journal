@@ -51,6 +51,15 @@ export interface Checkin {
   bonus: { question: string; answer: 'yes' | 'no' | null }
 }
 
+/** A sticker she placed on her journal page (positions in % of the page). */
+export interface Sticker {
+  emoji: string
+  x: number
+  y: number
+  rot: number
+  size: number
+}
+
 export interface JournalDay {
   familyId: string
   childId: string
@@ -60,6 +69,7 @@ export interface JournalDay {
   dailyTotals: DailyTotals
   streakCredit: boolean
   summerTrackerSync: SyncStatus | null
+  stickers?: Sticker[]
   createdAt?: unknown
   updatedAt?: unknown
 }
@@ -116,6 +126,11 @@ export async function ensureDay(dateKey: string = dateKeyFor()): Promise<void> {
 export async function saveCheckin(dateKey: string, checkin: Checkin): Promise<void> {
   await ensureDay(dateKey)
   await updateDoc(dayRef(dateKey), { checkin, updatedAt: serverTimestamp() })
+}
+
+/** Persist her page stickers (whole-array write — a page holds a handful). */
+export async function saveStickers(dateKey: string, stickers: Sticker[]): Promise<void> {
+  await updateDoc(dayRef(dateKey), { stickers, updatedAt: serverTimestamp() })
 }
 
 export interface CreateSectionOpts {
