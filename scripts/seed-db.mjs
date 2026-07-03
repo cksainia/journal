@@ -142,39 +142,61 @@ for (let i = 14; i >= 1; i--) {
   })
 
   for (const sec of sections) {
+    const reviewed = idx % 3 === 0 && sec.id === 's1' && sec.status !== 'archived'
     await put(`journalDays/${dayId}/sections/${sec.id}`, {
       type: sec.type,
       title: sec.title,
       prompt: sec.prompt,
+      genre: '',
+      standardsTags: [],
+      sparkleWords: { offered: [], used: [] },
+      planningChips: [],
       text: sec.text,
       plainText: sec.plainText,
       wordCount: countWords(sec.plainText),
       sentenceCount: countSentences(sec.plainText),
       activeWPM: sec.status === 'archived' ? null : 9 + ((idx * 7) % 9), // 9–17 WPM, varied
+      reviewCount: reviewed ? 1 : 0,
       status: sec.status,
       clientId: 'seed-script',
       createdAt: created,
       updatedAt: created,
     })
-    // Every 3rd day: a review with rubric + NJSLA estimates (mock-shaped, spec §4.5).
-    if (idx % 3 === 0 && sec.id === 's1') {
+    // Every 3rd day: a review matching the app's StoredReview shape (spec §4.5/§7).
+    if (reviewed) {
       const words = countWords(sec.plainText)
+      const spelling = idx % 4 === 0 ? 2 : 1
       await put(`journalDays/${dayId}/sections/${sec.id}/reviews/r1`, {
         schemaVersion: '1.0',
         reviewType: 'initial',
         model: 'mock',
-        counts: { words, sentences: countSentences(sec.plainText), spelling: idx % 4 === 0 ? 2 : 1, grammar: 1 },
+        encouragement: 'Your ideas really sparkle in this one!',
+        counts: { words, sentences: countSentences(sec.plainText), spelling, grammar: 1 },
         rubric: { ideas: 2 + (idx % 2), organization: 2, details: 1 + (idx % 3 ? 1 : 0), voice: 3, conventions: 2 },
         strengths: ['Strong personal voice with specific details.'],
         nextStep: { label: 'Add one more detail', reason: 'It helps your reader picture the moment.' },
-        corrections: [],
+        corrections: [
+          {
+            id: 'c1', type: 'spelling', category: 'spelling', original: 'freind', suggestion: 'friend',
+            explanationKid: 'Tricky word!', standardsTags: ['L.WF.3.2'], confidence: 0.95,
+          },
+          {
+            id: 'c2', type: 'capitalization', category: 'capitalization', original: 'i', suggestion: 'I',
+            explanationKid: "'I' always gets a capital!", standardsTags: ['L.WF.3.3'], confidence: 0.97,
+          },
+        ],
+        correctionOutcomes: idx % 2 === 0 ? { c1: 'used', c2: 'selfFixed' } : { c1: 'used', c2: 'skipped' },
         voiceNotes: ['funny', 'curious'],
-        sparkleWordsUsed: [],
+        sparkle_words_used: [],
         grammarByCategory: { capitalization: 1, punctuation: idx % 4 === 0 ? 1 : 0 },
-        parentMetrics: words >= 25
-          ? { njslaWrittenExpression: 2 + (idx % 2), njslaConventions: 2, rubricJustification: 'Seed data — varied sentences, light transitions.' }
+        parent_metrics: words >= 25
+          ? {
+              njsla_written_expression_estimate: 2 + (idx % 2),
+              njsla_conventions_estimate: 2,
+              rubric_justification: 'Seed data — varied sentences, light transitions.',
+            }
           : null,
-        postFixRecheck: null,
+        postFixRecheck: idx % 6 === 0 ? { spelling: 0, grammar: 1 } : null,
         safetyFlags: [],
         createdAt: created,
       })

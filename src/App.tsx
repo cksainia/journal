@@ -3,7 +3,8 @@ import { AppShell } from '@/components/AppShell'
 import { SignIn } from '@/screens/SignIn'
 import { Today } from '@/screens/Today'
 import { MyJournal } from '@/screens/MyJournal'
-import { MyProgress, ParentDashboard } from '@/screens/Placeholders'
+import { MyProgress } from '@/screens/MyProgress'
+import { ParentDashboard } from '@/screens/ParentDashboard'
 import { useSession } from '@/stores/session'
 
 function Splash() {

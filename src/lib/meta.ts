@@ -41,6 +41,7 @@ export interface JournalMeta {
   favoriteSentences?: FavoriteSentence[]
   parentNotes?: Record<string, string>
   currentBook?: string
+  kidVoiceCard?: string // copied from weekly insights — the ONLY insight the child sees
 }
 
 export function watchMeta(cb: (meta: JournalMeta) => void) {

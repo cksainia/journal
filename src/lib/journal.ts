@@ -65,13 +65,14 @@ export interface JournalDay {
 }
 
 /** Stable per-tab id, stored on sections for conflict handling (spec §7). */
-export const clientId: string =
-  sessionStorage.getItem('journal-client-id') ??
-  (() => {
-    const id = crypto.randomUUID()
-    sessionStorage.setItem('journal-client-id', id)
-    return id
-  })()
+export const clientId: string = (() => {
+  if (typeof sessionStorage === 'undefined') return 'test' // node test import
+  const existing = sessionStorage.getItem('journal-client-id')
+  if (existing) return existing
+  const id = crypto.randomUUID()
+  sessionStorage.setItem('journal-client-id', id)
+  return id
+})()
 
 export function dayIdFor(dateKey: string): string {
   return `${FAMILY_ID}_${CHILD_UID}_${compactDateKey(dateKey)}`
