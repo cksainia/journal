@@ -1,5 +1,6 @@
 import { Card, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { SyncStatusCard } from '@/components/SyncStatusCard'
 import { useSession } from '@/stores/session'
 
 export function MyProgress() {
@@ -37,10 +38,10 @@ export function ParentDashboard() {
       <Card>
         <CardTitle>Parent Dashboard</CardTitle>
         <p className="text-muted text-sm mt-1">
-          Signed in as {user?.email}. Analytics, insights, and settings arrive in Phase 7; Summer
-          Tracker sync status lands with Phase 3.
+          Signed in as {user?.email}. Analytics, insights, and settings arrive in Phase 7.
         </p>
       </Card>
+      <SyncStatusCard />
       <Card>
         <CardTitle className="text-base">Session</CardTitle>
         <Button variant="secondary" size="sm" className="mt-3" onClick={() => void signOut()}>

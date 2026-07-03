@@ -12,6 +12,10 @@ import { db } from './firebase'
 import { FAMILY_ID, CHILD_UID } from './constants'
 import { compactDateKey, dateKeyFor, deviceTimezone } from './dateKey'
 import { countWords, countSentences } from './counting'
+import { computeTotals, totalsEqual, type DailyTotals } from './totals'
+import { syncDayToTracker, type SyncStatus } from './trackerSync'
+
+export { computeTotals, totalsEqual, type DailyTotals }
 
 export type SectionType = 'guided' | 'free' | 'nudge' | 'drawing' | 'comic'
 export type SectionStatus = 'draft' | 'saved' | 'archived'
@@ -26,6 +30,7 @@ export interface JournalSection {
   wordCount: number
   sentenceCount: number
   activeWPM: number | null // silent typing fluency (spec §6.2) — parent-only, never shown to Aria
+  reviewCount: number // bumped when a review lands (drives reviewedSections in totals)
   status: SectionStatus
   clientId: string
   createdAt?: unknown
@@ -42,14 +47,6 @@ export interface Checkin {
   bonus: { question: string; answer: 'yes' | 'no' | null }
 }
 
-export interface DailyTotals {
-  words: number
-  sentences: number
-  sections: number
-  reviewedSections: number
-  drawings: number
-}
-
 export interface JournalDay {
   familyId: string
   childId: string
@@ -58,6 +55,7 @@ export interface JournalDay {
   checkin: Checkin | null
   dailyTotals: DailyTotals
   streakCredit: boolean
+  summerTrackerSync: SyncStatus | null
   createdAt?: unknown
   updatedAt?: unknown
 }
@@ -104,6 +102,7 @@ export async function ensureDay(dateKey: string = dateKeyFor()): Promise<void> {
     checkin: null,
     dailyTotals: EMPTY_TOTALS,
     streakCredit: false,
+    summerTrackerSync: null,
   }
   await setDoc(ref, { ...day, createdAt: serverTimestamp(), updatedAt: serverTimestamp() })
 }
@@ -131,6 +130,7 @@ export async function createSection(
     wordCount: 0,
     sentenceCount: 0,
     activeWPM: null,
+    reviewCount: 0,
     status: 'draft',
     clientId,
   }
@@ -159,33 +159,27 @@ export async function saveSectionText(
   })
 }
 
-/** Recompute day totals from live (non-archived) sections. Deterministic, never increments. */
-export function computeTotals(sections: JournalSection[]): DailyTotals {
-  const live = sections.filter((s) => s.status !== 'archived')
-  return {
-    words: live.reduce((n, s) => n + (s.wordCount || 0), 0),
-    sentences: live.reduce((n, s) => n + (s.sentenceCount || 0), 0),
-    sections: live.length,
-    reviewedSections: 0, // reviews land in Phase 4
-    drawings: live.filter((s) => s.type === 'drawing' || s.type === 'comic').length,
-  }
-}
-
-export function totalsEqual(a: DailyTotals, b: DailyTotals): boolean {
-  return (
-    a.words === b.words &&
-    a.sentences === b.sentences &&
-    a.sections === b.sections &&
-    a.reviewedSections === b.reviewedSections &&
-    a.drawings === b.drawings
-  )
-}
-
-/** Write-frugal totals update: callers compare with totalsEqual first. */
-export async function updateDayTotals(dateKey: string, totals: DailyTotals): Promise<void> {
+/**
+ * Write-frugal totals update + Summer Tracker sync (spec §8) in one choke
+ * point: recompute → sync claim → record status. Callers compare with
+ * totalsEqual first, so this runs only when the numbers actually changed —
+ * and the tracker gets exactly one merge-write per real change.
+ */
+export async function updateDayTotals(dateKey: string, totals: DailyTotals): Promise<SyncStatus> {
+  const sync = await syncDayToTracker(db, dateKey, totals)
   await updateDoc(dayRef(dateKey), {
     dailyTotals: totals,
     streakCredit: totals.sentences > 0 || totals.drawings > 0,
+    summerTrackerSync: sync,
     updatedAt: serverTimestamp(),
   })
+  return sync
+}
+
+/** Manual "Retry sync" (parent dashboard): re-read live sections, recompute, re-sync. */
+export async function retryTrackerSync(dateKey: string): Promise<SyncStatus> {
+  const { getDocs } = await import('firebase/firestore')
+  const snap = await getDocs(sectionsRef(dateKey))
+  const sections = snap.docs.map((d) => d.data() as JournalSection)
+  return updateDayTotals(dateKey, computeTotals(sections))
 }

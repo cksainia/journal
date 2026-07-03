@@ -11,7 +11,7 @@
     "seed": "node scripts/seed-emulator.mjs",
     "seed:db": "node scripts/seed-db.mjs",
     "test": "vitest run tests/unit",
-    "test:rules": "PATH=\"/opt/homebrew/opt/openjdk/bin:$PATH\" firebase emulators:exec --only firestore --project demo-aria-journal \"vitest run tests/rules\""
+    "test:rules": "PATH=\"/opt/homebrew/opt/openjdk/bin:$PATH\" firebase emulators:exec --only firestore --project demo-aria-journal \"vitest run tests/rules --no-file-parallelism\""
   },
   "dependencies": {
     "@tiptap/pm": "^3.27.1",
