@@ -1,0 +1,18 @@
+# local/editor cruft
+.DS_Store
+.claude/
+
+# dependencies & build output
+node_modules/
+dist/
+
+# local env & secrets (never commit)
+.env
+.env.*
+*.local
+
+# emulator state
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+.firebase/
