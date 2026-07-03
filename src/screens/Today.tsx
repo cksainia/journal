@@ -184,7 +184,8 @@ export function Today() {
           </span>
           <p className="font-extrabold text-xl">You wrote today!</p>
           <p className="text-muted text-sm">
-            {day?.dailyTotals.sentences ?? 0} sentences · {day?.dailyTotals.words ?? 0} words
+            {day?.dailyTotals.sentences ?? 0} {(day?.dailyTotals.sentences ?? 0) === 1 ? 'sentence' : 'sentences'} ·{' '}
+            {day?.dailyTotals.words ?? 0} {(day?.dailyTotals.words ?? 0) === 1 ? 'word' : 'words'}
           </p>
           <Button variant="soft" size="lg" onClick={() => setChoosing(true)} disabled={busy}>
             Write some more ✨
