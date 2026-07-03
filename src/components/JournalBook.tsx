@@ -22,11 +22,18 @@ const STICKER_BOX = [
 ]
 const MAX_STICKERS = 12
 
-export function JournalBook({ bundles }: { bundles: DayBundle[] }) {
-  // oldest → newest, opened to the latest page like a real journal
+export function JournalBook({
+  bundles,
+  index,
+  onIndexChange,
+}: {
+  bundles: DayBundle[]
+  /** Controlled page index (oldest → newest). Parent owns it so a month rail can jump. */
+  index: number
+  onIndexChange: (next: number) => void
+}) {
   const pages = bundles
-  const [index, setIndex] = useState(pages.length - 1)
-  const [dir, setDir] = useState(1)
+  const prevIndex = useRef(index)
   const [stickerMode, setStickerMode] = useState(false)
   const [picked, setPicked] = useState<string | null>(null)
   // local sticker overlay so placement feels instant; Firestore write follows
@@ -34,7 +41,9 @@ export function JournalBook({ bundles }: { bundles: DayBundle[] }) {
   const touchX = useRef<number | null>(null)
 
   if (!pages.length) return null
-  const clamped = Math.min(index, pages.length - 1)
+  const clamped = Math.max(0, Math.min(index, pages.length - 1))
+  const dir = clamped >= prevIndex.current ? 1 : -1
+  prevIndex.current = clamped
   const bundle = pages[clamped]
   const dateKey = bundle.day.dateKey
   const stickers = localStickers[dateKey] ?? bundle.day.stickers ?? []
@@ -42,8 +51,7 @@ export function JournalBook({ bundles }: { bundles: DayBundle[] }) {
   function go(delta: number) {
     const next = clamped + delta
     if (next < 0 || next >= pages.length) return
-    setDir(delta)
-    setIndex(next)
+    onIndexChange(next)
     setStickerMode(false)
     setPicked(null)
   }

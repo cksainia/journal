@@ -1,328 +1,184 @@
 import { useEffect, useMemo, useState } from 'react'
-import { collection, getDocs, onSnapshot, orderBy, query, where } from 'firebase/firestore'
-import { Card, CardTitle } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Chip } from '@/components/ui/chip'
-import { db } from '@/lib/firebase'
-import { monthGrid, monthLabel } from '@/lib/calendar'
 import { dateKeyFor } from '@/lib/dateKey'
-import { dayIdFor, type JournalDay, type JournalSection } from '@/lib/journal'
 import { loadRange, type DayBundle } from '@/lib/analytics'
-import { MOODS, RATINGS } from '@/components/CheckIn'
+import { MOODS } from '@/components/CheckIn'
 import { JournalBook, JournalPage } from '@/components/JournalBook'
 import { cn } from '@/lib/utils'
 
-const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
-
-function moodEmoji(day: JournalDay): string | null {
-  const first = day.checkin?.moods?.[0]
-  return MOODS.find((m) => m.id === first)?.emoji ?? null
-}
+const MODES = [
+  { id: 'guided', emoji: '✨', label: 'Guided' },
+  { id: 'free', emoji: '🖊️', label: 'Free writing' },
+  { id: 'nudge', emoji: '💭', label: 'Nudge' },
+  { id: 'drawing', emoji: '🎨', label: 'Drawing' },
+  { id: 'comic', emoji: '🗯️', label: 'Comic' },
+] as const
 
 /**
- * My Journal (spec §10): BOTH views with a toggle — calendar (default, month
- * grid with mood-emoji markers → day detail) and a book-like swipe carousel
- * with memory jar and search/filter by mood, mode, and word.
+ * My Journal — HER BOOK, one view: each day is a single cohesive paper page
+ * holding every entry (it scrolls when the day was a big one). A vertical
+ * month rail on the left jumps between months; page flips walk through the
+ * days. Finding a day = one collapsible with labeled Feelings / Entry-type
+ * filters + word search. Memory jar resurfaces a random past page.
  */
 export function MyJournal() {
-  const [view, setView] = useState<'calendar' | 'carousel'>('calendar')
-  return (
-    <div className="flex flex-col gap-4">
-      <header className="pt-2 flex items-end justify-between">
-        <div>
-          <p className="text-sm font-bold uppercase tracking-widest text-muted">My Journal</p>
-          <h1 className="text-3xl font-extrabold">My days 📅</h1>
-        </div>
-        <div className="flex gap-1" role="tablist" aria-label="Journal view">
-          <Chip active={view === 'calendar'} onClick={() => setView('calendar')} aria-selected={view === 'calendar'}>
-            📅
-          </Chip>
-          <Chip active={view === 'carousel'} onClick={() => setView('carousel')} aria-selected={view === 'carousel'}>
-            📖
-          </Chip>
-        </div>
-      </header>
-      {view === 'calendar' ? <CalendarView /> : <CarouselView />}
-    </div>
-  )
-}
-
-function CalendarView() {
-  const today = new Date()
-  const [year, setYear] = useState(today.getFullYear())
-  const [month0, setMonth0] = useState(today.getMonth())
-  const [days, setDays] = useState<Record<string, JournalDay>>({})
-  const [selected, setSelected] = useState<string | null>(null)
-
-  const weeks = monthGrid(year, month0)
-  const first = weeks[0].find(Boolean) as string
-  const last = [...weeks[weeks.length - 1]].reverse().find(Boolean) as string
-
-  useEffect(() => {
-    const q = query(
-      collection(db, 'journalDays'),
-      where('dateKey', '>=', first),
-      where('dateKey', '<=', last),
-    )
-    return onSnapshot(q, (snap) => {
-      const map: Record<string, JournalDay> = {}
-      snap.docs.forEach((d) => {
-        const day = d.data() as JournalDay
-        map[day.dateKey] = day
-      })
-      setDays(map)
-    })
-  }, [first, last])
-
-  function nav(delta: number) {
-    const d = new Date(year, month0 + delta, 1)
-    setYear(d.getFullYear())
-    setMonth0(d.getMonth())
-    setSelected(null)
-  }
-
-  const todayKey = dateKeyFor()
-
-  return (
-    <div className="flex flex-col gap-4">
-      <Card>
-        <div className="flex items-center justify-between mb-3">
-          <Button variant="ghost" size="icon" onClick={() => nav(-1)} aria-label="Previous month">
-            ←
-          </Button>
-          <CardTitle>{monthLabel(year, month0)}</CardTitle>
-          <Button variant="ghost" size="icon" onClick={() => nav(1)} aria-label="Next month">
-            →
-          </Button>
-        </div>
-
-        <div className="grid grid-cols-7 gap-1 text-center">
-          {WEEKDAYS.map((w, i) => (
-            <div key={i} className="text-xs font-extrabold text-muted py-1">
-              {w}
-            </div>
-          ))}
-          {weeks.flat().map((dk, i) =>
-            dk === null ? (
-              <div key={i} />
-            ) : (
-              <button
-                key={i}
-                onClick={() => setSelected(selected === dk ? null : dk)}
-                aria-label={dk + (days[dk] ? ' — has an entry' : '')}
-                className={cn(
-                  'aspect-square rounded-xl flex flex-col items-center justify-center text-sm font-bold',
-                  'focus-visible:outline-3 focus-visible:outline-offset-1 focus-visible:outline-lavender',
-                  dk === todayKey && 'ring-2 ring-coral',
-                  selected === dk
-                    ? 'bg-lavender text-white'
-                    : days[dk]
-                      ? 'bg-teal-soft text-ink'
-                      : 'text-muted hover:bg-soft',
-                )}
-              >
-                <span>{parseInt(dk.slice(8), 10)}</span>
-                {days[dk] && (
-                  <span className="text-xs leading-none" aria-hidden>
-                    {moodEmoji(days[dk]) ?? '✏️'}
-                  </span>
-                )}
-              </button>
-            ),
-          )}
-        </div>
-      </Card>
-
-      {selected && <DayDetail dateKey={selected} day={days[selected] ?? null} />}
-    </div>
-  )
-}
-
-function DayDetail({ dateKey, day }: { dateKey: string; day: JournalDay | null }) {
-  const [sections, setSections] = useState<JournalSection[] | null>(null)
-
-  useEffect(() => {
-    setSections(null)
-    if (!day) return
-    getDocs(query(collection(db, 'journalDays', dayIdFor(dateKey), 'sections'), orderBy('createdAt', 'asc')))
-      .then((snap) =>
-        setSections(snap.docs.map((d) => ({ ...(d.data() as JournalSection), id: d.id }))),
-      )
-      .catch(() => setSections([]))
-  }, [dateKey, day])
-
-  const pretty = new Date(dateKey + 'T12:00:00').toLocaleDateString(undefined, {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-  })
-
-  if (!day) {
-    return (
-      <Card className="text-center text-muted">
-        <p className="font-bold">{pretty}</p>
-        <p className="text-sm mt-1">No entry this day — and that's okay 💛</p>
-      </Card>
-    )
-  }
-
-  const rating = RATINGS.find((r) => r.id === day.checkin?.dayRating)
-  // The journal shows only real, current content — archived AND empty
-  // sections stay out (edit history lives in the entry's reviews, not here).
-  const live = (sections ?? []).filter(
-    (s) =>
-      s.status !== 'archived' &&
-      (s.plainText?.trim() ||
-        ((s as JournalSection & { panels?: unknown[] }).panels?.length ?? 0) > 0),
-  )
-
-  return (
-    <Card className="flex flex-col gap-3">
-      <CardTitle>{pretty}</CardTitle>
-
-      <div className="flex flex-wrap gap-2 text-sm">
-        {day.checkin?.moods?.map((id) => {
-          const m = MOODS.find((x) => x.id === id)
-          return m ? (
-            <span key={id} className="bg-sunny-soft rounded-full px-3 py-1 font-bold">
-              {m.emoji} {m.label}
-            </span>
-          ) : null
-        })}
-        {rating && (
-          <span className="bg-coral-soft rounded-full px-3 py-1 font-bold">
-            {rating.emoji} {rating.label} day
-          </span>
-        )}
-      </div>
-
-      <p className="text-sm text-muted font-bold">
-        {day.dailyTotals.sentences} sentences · {day.dailyTotals.words} words
-      </p>
-
-      {sections === null ? (
-        <p className="text-muted text-sm">Loading…</p>
-      ) : live.length === 0 ? (
-        <p className="text-muted text-sm">Checked in, but no writing yet.</p>
-      ) : (
-        live.map((s) => {
-          const panels = (s as JournalSection & { panels?: { image: string; caption: string }[] }).panels ?? []
-          const label =
-            s.type === 'nudge' ? '💭 Nudge'
-            : s.type === 'free' ? '🖊️ Free writing'
-            : s.type === 'guided' ? `✨ ${s.title || 'Guided'}`
-            : s.type === 'drawing' ? '🎨 Drawing'
-            : s.type === 'comic' ? '🗯️ Comic'
-            : s.type
-          return (
-            <div key={s.id} className="border border-line rounded-2xl p-3">
-              <p className="text-xs font-extrabold uppercase tracking-wide text-muted">{label}</p>
-              {s.prompt && <p className="text-sm text-muted mt-1 italic">“{s.prompt}”</p>}
-              {panels.length > 0 && (
-                <div className="flex gap-2 mt-2">
-                  {panels.map((p, i) => (
-                    <img
-                      key={i}
-                      src={p.image}
-                      alt={p.caption || `Panel ${i + 1}`}
-                      className="w-1/3 max-w-40 rounded-xl border border-line"
-                    />
-                  ))}
-                </div>
-              )}
-              <p className="mt-1 whitespace-pre-wrap">{s.plainText || <em className="text-muted">…</em>}</p>
-            </div>
-          )
-        })
-      )}
-    </Card>
-  )
-}
-
-/** Book-like carousel + memory jar + search/filter (spec §10, Phase 8). */
-function CarouselView() {
   const [bundles, setBundles] = useState<DayBundle[] | null>(null)
+  const [pageIndex, setPageIndex] = useState<number | null>(null) // null → open at latest
+  const [findOpen, setFindOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [moodFilter, setMoodFilter] = useState<string | null>(null)
   const [modeFilter, setModeFilter] = useState<string | null>(null)
   const [memory, setMemory] = useState<DayBundle | null>(null)
 
   useEffect(() => {
-    loadRange(60).then(setBundles).catch(() => setBundles([]))
+    loadRange(120).then(setBundles).catch(() => setBundles([]))
   }, [])
 
-  const withEntries = useMemo(
+  // oldest → newest; only days with real content get a page
+  const pages = useMemo(
     () =>
-      (bundles ?? [])
-        .filter((b) =>
-          b.sections.some(
-            (s) => s.status !== 'archived' && (s.plainText?.trim() || (s.panels?.length ?? 0) > 0),
-          ),
-        )
-        .reverse(),
+      (bundles ?? []).filter((b) =>
+        b.sections.some(
+          (s) => s.status !== 'archived' && (s.plainText?.trim() || (s.panels?.length ?? 0) > 0),
+        ),
+      ),
     [bundles],
   )
+
+  const index = pageIndex ?? pages.length - 1
+
+  // months present in the book, newest first for the rail
+  const months = useMemo(() => {
+    const seen = new Map<string, number>() // yyyy-MM → first page index
+    pages.forEach((b, i) => {
+      const key = b.day.dateKey.slice(0, 7)
+      if (!seen.has(key)) seen.set(key, i)
+    })
+    return [...seen.entries()]
+      .map(([ym, firstIndex]) => ({
+        ym,
+        firstIndex,
+        label: new Date(ym + '-15T12:00:00').toLocaleDateString(undefined, { month: 'short' }),
+        year: ym.slice(0, 4),
+      }))
+      .reverse()
+  }, [pages])
+
+  const currentMonth = pages[index]?.day.dateKey.slice(0, 7)
+  const showYears = new Set(months.map((m) => m.year)).size > 1
 
   const filtering = !!(search.trim() || moodFilter || modeFilter)
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return withEntries.filter((b) => {
+    return [...pages].reverse().filter((b) => {
       if (moodFilter && !(b.day.checkin?.moods ?? []).includes(moodFilter)) return false
       const live = b.sections.filter((s) => s.status !== 'archived')
       if (modeFilter && !live.some((s) => s.type === modeFilter)) return false
       if (q && !live.some((s) => (s.plainText + ' ' + s.prompt).toLowerCase().includes(q))) return false
       return true
     })
-  }, [withEntries, search, moodFilter, modeFilter])
+  }, [pages, search, moodFilter, modeFilter])
 
   function shakeMemoryJar() {
-    if (!withEntries.length) return
-    const pastDays = withEntries.filter((b) => b.day.dateKey !== dateKeyFor())
-    const pick = pastDays[Math.floor(Math.random() * pastDays.length)] ?? withEntries[0]
-    setMemory(pick)
+    if (!pages.length) return
+    const past = pages.filter((b) => b.day.dateKey !== dateKeyFor())
+    setMemory(past[Math.floor(Math.random() * past.length)] ?? pages[0])
   }
 
-  if (!bundles) return <Card className="text-center text-muted py-8">Opening your book… 📖</Card>
+  if (!bundles) {
+    return (
+      <div className="flex flex-col gap-4">
+        <Header />
+        <Card className="text-center text-muted py-10">Opening your book… 📖</Card>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-3">
+      <Header />
+
       <div className="flex flex-wrap gap-2 items-center">
-        <input
-          type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search your words…"
-          aria-label="Search journal entries"
-          className="flex-1 min-w-40 min-h-11 px-4 rounded-full border-2 border-line bg-paper focus:border-teal focus:outline-none text-sm font-bold"
-        />
+        <Chip onClick={() => setFindOpen(!findOpen)} aria-expanded={findOpen}>
+          🔍 Find a day {findOpen ? '▾' : '▸'}
+        </Chip>
         <Chip onClick={shakeMemoryJar}>🫙 Memory jar</Chip>
+        {filtering && (
+          <Chip
+            onClick={() => {
+              setSearch('')
+              setMoodFilter(null)
+              setModeFilter(null)
+            }}
+          >
+            ✖︎ Clear filters
+          </Chip>
+        )}
       </div>
 
-      <div className="flex flex-wrap gap-1.5">
-        {MOODS.map((m) => (
-          <Chip key={m.id} active={moodFilter === m.id} onClick={() => setMoodFilter(moodFilter === m.id ? null : m.id)} className="min-h-9 px-3 text-xs">
-            {m.emoji}
-          </Chip>
-        ))}
-        {(['guided', 'free', 'nudge', 'drawing', 'comic'] as const).map((t) => (
-          <Chip key={t} active={modeFilter === t} onClick={() => setModeFilter(modeFilter === t ? null : t)} className="min-h-9 px-3 text-xs">
-            {{ guided: '✨', free: '🖊️', nudge: '💭', drawing: '🎨', comic: '🗯️' }[t]} {t}
-          </Chip>
-        ))}
-      </div>
+      {findOpen && (
+        <Card className="flex flex-col gap-3 p-4">
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search your words…"
+            aria-label="Search journal entries"
+            className="w-full min-h-11 px-4 rounded-full border-2 border-line bg-paper focus:border-teal focus:outline-none text-sm font-bold"
+          />
+          <div>
+            <p className="text-xs font-extrabold uppercase tracking-widest text-muted mb-1.5">
+              💛 Feelings
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {MOODS.map((m) => (
+                <Chip
+                  key={m.id}
+                  active={moodFilter === m.id}
+                  onClick={() => setMoodFilter(moodFilter === m.id ? null : m.id)}
+                  className="min-h-9 px-3 text-xs"
+                >
+                  {m.emoji} {m.label}
+                </Chip>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-extrabold uppercase tracking-widest text-muted mb-1.5">
+              ✏️ Entry types
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {MODES.map((t) => (
+                <Chip
+                  key={t.id}
+                  active={modeFilter === t.id}
+                  onClick={() => setModeFilter(modeFilter === t.id ? null : t.id)}
+                  className="min-h-9 px-3 text-xs"
+                >
+                  {t.emoji} {t.label}
+                </Chip>
+              ))}
+            </div>
+          </div>
+        </Card>
+      )}
 
       {memory && (
         <div className="relative">
           <p className="font-hand-display text-xl text-muted mb-1">🫙 shaken from your memory jar…</p>
           <JournalPage bundle={memory} compact />
-          <Button variant="ghost" size="sm" className="mt-1" onClick={() => setMemory(null)}>Put it back</Button>
+          <Button variant="ghost" size="sm" className="mt-1" onClick={() => setMemory(null)}>
+            Put it back
+          </Button>
         </div>
       )}
 
-      {withEntries.length === 0 ? (
+      {pages.length === 0 ? (
         <Card className="text-center text-muted py-8">Your book is waiting for its first page 💛</Card>
       ) : filtering ? (
-        <div className="flex flex-col gap-4" aria-label="Search results">
+        <div className="flex flex-col gap-4" aria-label="Matching days">
           {filtered.length === 0 ? (
             <Card className="text-center text-muted py-6">Nothing matched — try different words?</Card>
           ) : (
@@ -330,8 +186,43 @@ function CarouselView() {
           )}
         </div>
       ) : (
-        <JournalBook bundles={[...withEntries].reverse()} />
+        <div className="flex gap-2 items-start">
+          {/* month rail — tap to jump, then flip through the days */}
+          {months.length > 1 && (
+            <nav aria-label="Jump to a month" className="flex flex-col gap-1.5 pt-2 sticky top-2">
+              {months.map((m) => (
+                <button
+                  key={m.ym}
+                  onClick={() => setPageIndex(m.firstIndex)}
+                  aria-current={m.ym === currentMonth ? 'true' : undefined}
+                  className={cn(
+                    'min-w-11 min-h-11 px-1.5 rounded-xl font-extrabold text-xs uppercase tracking-wide',
+                    'focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-lavender',
+                    m.ym === currentMonth
+                      ? 'bg-coral text-white shadow-card -rotate-2'
+                      : 'bg-paper border border-line text-muted hover:border-coral hover:text-ink',
+                  )}
+                >
+                  {m.label}
+                  {showYears && <span className="block text-[9px] opacity-70">{m.year.slice(2)}</span>}
+                </button>
+              ))}
+            </nav>
+          )}
+          <div className="flex-1 min-w-0">
+            <JournalBook bundles={pages} index={index} onIndexChange={setPageIndex} />
+          </div>
+        </div>
       )}
     </div>
+  )
+}
+
+function Header() {
+  return (
+    <header className="pt-2">
+      <p className="text-sm font-bold uppercase tracking-widest text-muted">My Journal</p>
+      <h1 className="text-3xl font-extrabold">My book 📖</h1>
+    </header>
   )
 }
