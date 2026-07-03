@@ -264,7 +264,7 @@ export function SectionEditor({
         </div>
       )}
 
-      <div className="kid-editor bg-paper border border-line rounded-3xl p-5 shadow-card">
+      <div className="kid-editor paper-page paper-ink p-5 pl-14">
         <EditorContent editor={editor} />
       </div>
 

@@ -40,12 +40,13 @@ html, body {
    Native red squiggles off — the app has its own gentle review step. */
 .kid-editor .tiptap {
   font-family: "Caveat", cursive;
-  font-size: 28px;
-  line-height: 1.6;
+  font-size: 26px;
+  line-height: 28px; /* sit exactly on the paper rules */
   min-height: 40vh;
   outline: none;
+  caret-color: #ec4899; /* pink pen */
 }
-.kid-editor .tiptap p { margin: 0 0 0.6em; }
+.kid-editor .tiptap p { margin: 0; }
 .kid-editor .tiptap p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   color: var(--color-muted);
