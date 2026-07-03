@@ -217,3 +217,25 @@ export async function retryTrackerSync(dateKey: string): Promise<SyncStatus> {
   const sections = snap.docs.map((d) => d.data() as JournalSection)
   return updateDayTotals(dateKey, computeTotals(sections))
 }
+
+/** Parent entry management (spec §11: child archives, parent deletes/restores). */
+export async function setSectionStatus(
+  dateKey: string,
+  sectionId: string,
+  status: SectionStatus,
+): Promise<void> {
+  await updateDoc(doc(sectionsRef(dateKey), sectionId), { status, updatedAt: serverTimestamp() })
+  await retryTrackerSync(dateKey) // totals + tracker claim follow the change
+}
+
+/** Hard delete (PARENT ONLY, rules-enforced): removes the section AND its
+ *  reviews (Firestore doesn't cascade), then recomputes totals + sync. */
+export async function deleteSectionForever(dateKey: string, sectionId: string): Promise<void> {
+  const { deleteDoc, getDocs, collection: coll } = await import('firebase/firestore')
+  const reviewsSnap = await getDocs(
+    coll(db, 'journalDays', dayIdFor(dateKey), 'sections', sectionId, 'reviews'),
+  )
+  await Promise.all(reviewsSnap.docs.map((r) => deleteDoc(r.ref)))
+  await deleteDoc(doc(sectionsRef(dateKey), sectionId))
+  await retryTrackerSync(dateKey)
+}

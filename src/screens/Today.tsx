@@ -3,7 +3,7 @@ import { onSnapshot, orderBy, query } from 'firebase/firestore'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { SectionEditor } from '@/components/SectionEditor'
-import { CheckIn } from '@/components/CheckIn'
+import { CheckIn, MOODS, LOCATIONS, ACTIVITIES, RATINGS } from '@/components/CheckIn'
 import { SparkChooser } from '@/components/SparkChooser'
 import { GuidedSetup } from '@/components/GuidedSetup'
 import { DrawingEditor } from '@/components/DrawingEditor'
@@ -71,11 +71,12 @@ export function Today() {
   const editing = editingId ? sections.find((s) => s.id === editingId) : undefined
 
   async function onCheckinDone(checkin: Checkin) {
+    const wasEditing = !!day?.checkin
     setBusy(true)
     try {
       await saveCheckin(dateKey, checkin)
       setCheckingIn(false)
-      setChoosing(true)
+      if (!wasEditing) setChoosing(true) // first check-in flows into writing; edits return home
     } catch (e) {
       console.warn('check-in save failed:', (e as Error).message)
     } finally {
@@ -121,7 +122,7 @@ export function Today() {
   }
 
   if (checkingIn) {
-    return <CheckIn dateKey={dateKey} onDone={onCheckinDone} />
+    return <CheckIn dateKey={dateKey} initial={day?.checkin ?? null} onDone={onCheckinDone} />
   }
 
   if (guidedSetup) {
@@ -201,6 +202,51 @@ export function Today() {
           <Button size="lg" onClick={() => setChoosing(true)} disabled={busy}>
             Choose your spark ✨
           </Button>
+        </Card>
+      )}
+
+      {/* Her check-in answers — always visible, always editable */}
+      {loaded && day?.checkin && (
+        <Card className="p-4">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-extrabold uppercase tracking-widest text-muted">
+              🌞 My day
+            </p>
+            <Button variant="ghost" size="sm" onClick={() => setCheckingIn(true)}>
+              ✏️ Change my answers
+            </Button>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-2">
+            {day.checkin.moods.map((id) => (
+              <span key={id} className="flex items-center gap-1 font-bold text-sm">
+                <Art set="feeling" id={id} size={28} />
+                {MOODS.find((m) => m.id === id)?.label}
+              </span>
+            ))}
+            {day.checkin.location && (
+              <span className="bg-teal-soft rounded-full px-3 py-1 font-bold text-sm">
+                {LOCATIONS.find((l) => l.id === day.checkin!.location)?.emoji}{' '}
+                {LOCATIONS.find((l) => l.id === day.checkin!.location)?.label}
+              </span>
+            )}
+            {day.checkin.activities.map((id) => {
+              const a = ACTIVITIES.find((x) => x.id === id)
+              return a ? (
+                <span key={id} className="bg-soft rounded-full px-3 py-1 font-bold text-sm">
+                  {a.emoji} {a.label}
+                  {id === 'something-else' && day.checkin!.somethingElse
+                    ? `: ${day.checkin!.somethingElse}`
+                    : ''}
+                </span>
+              ) : null
+            })}
+            {day.checkin.dayRating && (
+              <span className="bg-sunny-soft rounded-full px-3 py-1 font-bold text-sm">
+                {RATINGS.find((r) => r.id === day.checkin!.dayRating)?.emoji}{' '}
+                {RATINGS.find((r) => r.id === day.checkin!.dayRating)?.label} day
+              </span>
+            )}
+          </div>
         </Card>
       )}
 

@@ -117,10 +117,11 @@ function Dashboard({ email, onSignOut }: { email: string; onSignOut: () => void 
   const [insights, setInsights] = useState<WeeklyInsights | null>(null)
   const [generating, setGenerating] = useState(false)
 
+  const [reloadKey, setReloadKey] = useState(0)
   useEffect(() => {
     setBundles(null)
     loadRange(range).then(setBundles).catch(() => setBundles([]))
-  }, [range])
+  }, [range, reloadKey])
   useEffect(() => watchMeta(setMeta), [])
 
   const weekStart = weekStartKey()
@@ -390,6 +391,7 @@ function Dashboard({ email, onSignOut }: { email: string; onSignOut: () => void 
       <ParentNotes meta={meta} weekStart={weekStart} />
 
       {/* 4 — raw data / settings */}
+      <EntriesManager bundles={bundles} onChanged={() => setReloadKey((k) => k + 1)} />
       <ExportsCard bundles={bundles} />
       <SyncStatusCard />
       <SettingsCard />
@@ -552,6 +554,93 @@ function ExportsCard({ bundles }: { bundles: DayBundle[] }) {
           📖 Printable keepsake
         </Button>
       </div>
+    </Card>
+  )
+}
+
+/** Entry management (spec §11): the child can only archive — here the parent
+ *  archives, restores, or deletes forever. Every change recomputes the day's
+ *  totals and re-syncs the tracker claim. */
+function EntriesManager({ bundles, onChanged }: { bundles: DayBundle[]; onChanged: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState<string | null>(null)
+
+  const daysWithSections = [...bundles].reverse().filter((b) => b.sections.length > 0)
+
+  async function act(dateKey: string, sectionId: string, action: 'archive' | 'restore' | 'delete') {
+    const { setSectionStatus, deleteSectionForever } = await import('@/lib/journal')
+    if (action === 'delete' && !window.confirm('Delete this entry forever? This cannot be undone.'))
+      return
+    setBusy(sectionId)
+    try {
+      if (action === 'delete') await deleteSectionForever(dateKey, sectionId)
+      else await setSectionStatus(dateKey, sectionId, action === 'archive' ? 'archived' : 'saved')
+      onChanged()
+    } catch (e) {
+      console.warn('entry action failed:', (e as Error).message)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <Card>
+      <div className="flex items-center justify-between">
+        <CardTitle className="text-base">Manage entries</CardTitle>
+        <Button variant="ghost" size="sm" onClick={() => setOpen(!open)} aria-expanded={open}>
+          {open ? 'Hide ▾' : 'Show ▸'}
+        </Button>
+      </div>
+      <p className="text-muted text-xs mt-1">
+        Archive hides an entry everywhere (recoverable); delete is forever. Totals and Summer
+        Tracker sync update automatically. Aria can never delete — only you can.
+      </p>
+      {open && (
+        <div className="mt-3 flex flex-col gap-3 max-h-96 overflow-y-auto pr-1">
+          {daysWithSections.length === 0 && (
+            <p className="text-muted text-sm">No entries in this date range.</p>
+          )}
+          {daysWithSections.map((b) => (
+            <div key={b.day.dateKey}>
+              <p className="font-bold text-sm">{b.day.dateKey}</p>
+              {b.sections.map((s) => (
+                <div
+                  key={s.id}
+                  className="flex items-center gap-2 border border-line rounded-xl p-2 mt-1"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold">
+                      {s.type}
+                      {s.status === 'archived' && (
+                        <span className="text-coral"> · archived</span>
+                      )}
+                      {s.status === 'draft' && <span className="text-muted"> · draft</span>}
+                    </p>
+                    <p className="text-muted text-xs truncate">
+                      {s.plainText?.trim() || ((s.panels?.length ?? 0) > 0 ? '(drawing)' : '(empty)')}
+                    </p>
+                  </div>
+                  {s.status === 'archived' ? (
+                    <Button size="sm" variant="secondary" disabled={busy === s.id}
+                      onClick={() => void act(b.day.dateKey, s.id, 'restore')}>
+                      Restore
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="secondary" disabled={busy === s.id}
+                      onClick={() => void act(b.day.dateKey, s.id, 'archive')}>
+                      Archive
+                    </Button>
+                  )}
+                  <Button size="sm" variant="ghost" className="text-coral" disabled={busy === s.id}
+                    onClick={() => void act(b.day.dateKey, s.id, 'delete')}>
+                    Delete
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
     </Card>
   )
 }

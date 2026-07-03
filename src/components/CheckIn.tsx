@@ -17,7 +17,7 @@ export const MOODS = [
   { id: 'nervous', emoji: '😬', label: 'Nervous' },
 ]
 
-const LOCATIONS = [
+export const LOCATIONS = [
   { id: 'home', emoji: '🏠', label: 'Home' },
   { id: 'school-camp', emoji: '🎒', label: 'School or camp' },
   { id: 'traveling', emoji: '✈️', label: 'Traveling' },
@@ -25,7 +25,7 @@ const LOCATIONS = [
   { id: 'somewhere-new', emoji: '🌟', label: 'Somewhere new' },
 ]
 
-const ACTIVITIES = [
+export const ACTIVITIES = [
   { id: 'played-outside', emoji: '🌳', label: 'Played outside' },
   { id: 'read', emoji: '📚', label: 'Read a book' },
   { id: 'sports', emoji: '⚽', label: 'Sports' },
@@ -54,20 +54,23 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
-/** Daily check-in (spec §4.1): 30–60s, all taps, no typing required. */
+/** Daily check-in (spec §4.1): 30–60s, all taps, no typing required.
+ *  Pass `initial` to reopen it prefilled for editing her answers. */
 export function CheckIn({
   dateKey,
+  initial = null,
   onDone,
 }: {
   dateKey: string
+  initial?: Checkin | null
   onDone: (checkin: Checkin) => void
 }) {
-  const [moods, setMoods] = useState<string[]>([])
-  const [location, setLocation] = useState<string | null>(null)
-  const [activities, setActivities] = useState<string[]>([])
-  const [somethingElse, setSomethingElse] = useState('')
-  const [dayRating, setDayRating] = useState<string | null>(null)
-  const [bonusAnswer, setBonusAnswer] = useState<'yes' | 'no' | null>(null)
+  const [moods, setMoods] = useState<string[]>(initial?.moods ?? [])
+  const [location, setLocation] = useState<string | null>(initial?.location ?? null)
+  const [activities, setActivities] = useState<string[]>(initial?.activities ?? [])
+  const [somethingElse, setSomethingElse] = useState(initial?.somethingElse ?? '')
+  const [dayRating, setDayRating] = useState<string | null>(initial?.dayRating ?? null)
+  const [bonusAnswer, setBonusAnswer] = useState<'yes' | 'no' | null>(initial?.bonus?.answer ?? null)
   const bonusQuestion = bonusQuestionForDate(dateKey)
 
   const toggle = (list: string[], set: (v: string[]) => void, id: string) =>
