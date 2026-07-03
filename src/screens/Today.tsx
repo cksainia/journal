@@ -91,6 +91,16 @@ export function Today() {
       setGuidedSetup({ bookMode: !!opts?.bookMode })
       return
     }
+    // ONE nudge per day: picking it again resumes the existing entry — no
+    // pile of near-duplicate sections, one refined entry instead.
+    if (type === 'nudge') {
+      const existing = liveSections.find((s) => s.type === 'nudge')
+      if (existing) {
+        setChoosing(false)
+        setEditingId(existing.id)
+        return
+      }
+    }
     setBusy(true)
     try {
       const id = await createSection(dateKey, type, opts)
@@ -190,6 +200,51 @@ export function Today() {
             Choose your spark ✨
           </Button>
         </Card>
+      )}
+
+      {/* Today's entries — tap any to reopen and keep refining it */}
+      {liveSections.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <p className="text-xs font-extrabold uppercase tracking-widest text-muted px-1">
+            Today's entries
+          </p>
+          {liveSections.map((s) => {
+            const emoji =
+              s.type === 'nudge' ? '💭' : s.type === 'free' ? '🖊️' : s.type === 'guided' ? '✨'
+              : s.type === 'drawing' ? '🎨' : '🗯️'
+            const snippet = s.plainText?.trim()
+              ? s.plainText.trim().slice(0, 80) + (s.plainText.trim().length > 80 ? '…' : '')
+              : '(nothing written yet)'
+            return (
+              <Card
+                key={s.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => setEditingId(s.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setEditingId(s.id)
+                  }
+                }}
+                className="p-3 cursor-pointer hover:border-teal transition-colors
+                           focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-lavender"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl" aria-hidden>{emoji}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-extrabold text-sm">
+                      {s.title || (s.type === 'free' ? 'Free writing' : s.type)}
+                      {s.status === 'draft' && <span className="text-muted font-bold"> · draft</span>}
+                    </p>
+                    <p className="text-muted text-sm truncate">{snippet}</p>
+                  </div>
+                  <span className="text-muted" aria-hidden>›</span>
+                </div>
+              </Card>
+            )
+          })}
+        </div>
       )}
     </div>
   )

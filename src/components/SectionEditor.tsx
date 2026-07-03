@@ -116,7 +116,7 @@ export function SectionEditor({
     },
   })
 
-  async function persist(status: 'draft' | 'saved') {
+  async function persist(status: 'draft' | 'saved' | 'archived') {
     if (!editor) return
     const html = editor.getHTML()
     const plain = editor.getText()
@@ -157,8 +157,11 @@ export function SectionEditor({
   async function done() {
     clearTimeout(timer.current)
     stopSpeaking()
-    await persist('saved')
-    if (counts.words > 0) celebrate({ small: counts.sentences < 3 }) // save moment (spec §4.6)
+    // Leaving an empty section behind just clutters the journal — archive it
+    // silently instead (recoverable by the parent, invisible everywhere else).
+    const empty = !editor || !editor.getText().trim()
+    await persist(empty ? 'archived' : 'saved')
+    if (!empty && counts.words > 0) celebrate({ small: counts.sentences < 3 }) // save moment (spec §4.6)
     onClose()
   }
 

@@ -166,7 +166,14 @@ function DayDetail({ dateKey, day }: { dateKey: string; day: JournalDay | null }
   }
 
   const rating = RATINGS.find((r) => r.id === day.checkin?.dayRating)
-  const live = (sections ?? []).filter((s) => s.status !== 'archived')
+  // The journal shows only real, current content — archived AND empty
+  // sections stay out (edit history lives in the entry's reviews, not here).
+  const live = (sections ?? []).filter(
+    (s) =>
+      s.status !== 'archived' &&
+      (s.plainText?.trim() ||
+        ((s as JournalSection & { panels?: unknown[] }).panels?.length ?? 0) > 0),
+  )
 
   return (
     <Card className="flex flex-col gap-3">
@@ -244,7 +251,14 @@ function CarouselView() {
   }, [])
 
   const withEntries = useMemo(
-    () => (bundles ?? []).filter((b) => b.sections.some((s) => s.status !== 'archived')).reverse(),
+    () =>
+      (bundles ?? [])
+        .filter((b) =>
+          b.sections.some(
+            (s) => s.status !== 'archived' && (s.plainText?.trim() || (s.panels?.length ?? 0) > 0),
+          ),
+        )
+        .reverse(),
     [bundles],
   )
 
@@ -333,7 +347,9 @@ function CarouselView() {
 
 function DayCard({ bundle, plain = false }: { bundle: DayBundle; plain?: boolean }) {
   const { day, sections } = bundle
-  const live = sections.filter((s) => s.status !== 'archived')
+  const live = sections.filter(
+    (s) => s.status !== 'archived' && (s.plainText?.trim() || (s.panels?.length ?? 0) > 0),
+  )
   const pretty = new Date(day.dateKey + 'T12:00:00').toLocaleDateString(undefined, {
     weekday: 'long', month: 'long', day: 'numeric',
   })
