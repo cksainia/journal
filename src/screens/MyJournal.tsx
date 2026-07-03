@@ -6,6 +6,7 @@ import { dateKeyFor } from '@/lib/dateKey'
 import { loadRange, type DayBundle } from '@/lib/analytics'
 import { MOODS } from '@/components/CheckIn'
 import { JournalBook, JournalPage } from '@/components/JournalBook'
+import { Art } from '@/components/illustrations'
 import { cn } from '@/lib/utils'
 
 const MODES = [
@@ -138,9 +139,9 @@ export function MyJournal() {
                   key={m.id}
                   active={moodFilter === m.id}
                   onClick={() => setMoodFilter(moodFilter === m.id ? null : m.id)}
-                  className="min-h-9 px-3 text-xs"
+                  className="min-h-10 px-3 text-xs"
                 >
-                  {m.emoji} {m.label}
+                  <Art set="feeling" id={m.id} size={26} /> {m.label}
                 </Chip>
               ))}
             </div>
@@ -155,9 +156,9 @@ export function MyJournal() {
                   key={t.id}
                   active={modeFilter === t.id}
                   onClick={() => setModeFilter(modeFilter === t.id ? null : t.id)}
-                  className="min-h-9 px-3 text-xs"
+                  className="min-h-10 px-3 text-xs"
                 >
-                  {t.emoji} {t.label}
+                  <Art set="entry" id={t.id} size={26} /> {t.label}
                 </Chip>
               ))}
             </div>

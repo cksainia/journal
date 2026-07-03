@@ -5,6 +5,7 @@ import { Chip } from '@/components/ui/chip'
 import type { DayBundle } from '@/lib/analytics'
 import { saveStickers, type Sticker } from '@/lib/journal'
 import { MOODS, RATINGS } from '@/components/CheckIn'
+import { Art } from '@/components/illustrations'
 import { DOODLES, doodlesForDay } from '@/components/doodles'
 import { celebrate } from '@/lib/confetti'
 
@@ -264,14 +265,14 @@ export function JournalPage({
       {/* date headline + mood stickers */}
       <div className="flex items-start justify-between gap-2 relative">
         <p className="font-hand-display text-3xl leading-none -rotate-1">{pretty}</p>
-        <div className="flex gap-1 text-xl" aria-label="How she felt">
+        <div className="flex gap-1 items-center" aria-label="How she felt">
           {moods.map((m) => (
             <span key={m!.id} title={m!.label} className="drop-shadow-sm">
-              {m!.emoji}
+              <Art set="feeling" id={m!.id} size={compact ? 22 : 30} />
             </span>
           ))}
           {rating && (
-            <span title={`${rating.label} day`} className="drop-shadow-sm">
+            <span title={`${rating.label} day`} className="drop-shadow-sm text-xl">
               {rating.emoji}
             </span>
           )}

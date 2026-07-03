@@ -1,4 +1,5 @@
 import { Card } from '@/components/ui/card'
+import { Art } from '@/components/illustrations'
 import { nudgeForDate } from '@/data/nudges'
 import type { SectionType } from '@/lib/journal'
 import { cn } from '@/lib/utils'
@@ -60,9 +61,13 @@ export function SparkChooser({
                 : 'cursor-pointer hover:scale-[1.02] active:scale-95 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-lavender',
             )}
           >
-            <span className="text-4xl" aria-hidden>
-              {m.emoji}
-            </span>
+            {m.opts?.bookMode || m.soon ? (
+              <span className="text-4xl" aria-hidden>
+                {m.emoji}
+              </span>
+            ) : (
+              <Art set="entry" id={m.type} size={52} />
+            )}
             <p className="font-extrabold mt-1">{m.title}</p>
             <p className="text-muted text-sm mt-0.5 line-clamp-3">{m.blurb}</p>
           </Card>

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Chip } from '@/components/ui/chip'
+import { Art } from '@/components/illustrations'
 import { bonusQuestionForDate } from '@/data/nudges'
 import type { Checkin } from '@/lib/journal'
 
@@ -89,7 +90,7 @@ export function CheckIn({
             onClick={() => toggle(moods, setMoods, m.id)}
             aria-pressed={moods.includes(m.id)}
           >
-            <span aria-hidden>{m.emoji}</span> {m.label}
+            <Art set="feeling" id={m.id} size={30} /> {m.label}
           </Chip>
         ))}
       </Section>

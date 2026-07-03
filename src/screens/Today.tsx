@@ -7,6 +7,7 @@ import { CheckIn } from '@/components/CheckIn'
 import { SparkChooser } from '@/components/SparkChooser'
 import { GuidedSetup } from '@/components/GuidedSetup'
 import { DrawingEditor } from '@/components/DrawingEditor'
+import { Art } from '@/components/illustrations'
 import { dateKeyFor } from '@/lib/dateKey'
 import {
   computeTotals,
@@ -210,9 +211,6 @@ export function Today() {
             Today's entries
           </p>
           {liveSections.map((s) => {
-            const emoji =
-              s.type === 'nudge' ? '💭' : s.type === 'free' ? '🖊️' : s.type === 'guided' ? '✨'
-              : s.type === 'drawing' ? '🎨' : '🗯️'
             const snippet = s.plainText?.trim()
               ? s.plainText.trim().slice(0, 80) + (s.plainText.trim().length > 80 ? '…' : '')
               : '(nothing written yet)'
@@ -232,7 +230,7 @@ export function Today() {
                            focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-lavender"
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-2xl" aria-hidden>{emoji}</span>
+                  <Art set="entry" id={s.type} size={36} />
                   <div className="min-w-0 flex-1">
                     <p className="font-extrabold text-sm">
                       {s.title || (s.type === 'free' ? 'Free writing' : s.type)}
