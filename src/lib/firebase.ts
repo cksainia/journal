@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app'
-import { getAuth, connectAuthEmulator } from 'firebase/auth'
+import { getAuth, connectAuthEmulator, setPersistence, browserLocalPersistence } from 'firebase/auth'
 import {
   initializeFirestore,
   connectFirestoreEmulator,
@@ -24,8 +24,14 @@ const firebaseConfig = {
   appId: '1:943653530208:web:014a7a7abf4b4ab2627105',
 }
 
-export const app = initializeApp(firebaseConfig)
+// NAMED app (not [DEFAULT]): the Summer Tracker lives on the same origin and
+// the same Firebase project, so a default app would SHARE one auth session —
+// any sign-out or account switch in the tracker was silently bouncing Aria to
+// the journal's login screen. A named app gets its own persistence key, so
+// her journal session survives whatever happens in the tracker.
+export const app = initializeApp(firebaseConfig, 'aria-journal')
 export const auth = getAuth(app)
+void setPersistence(auth, browserLocalPersistence).catch(() => {}) // explicit keep-me-signed-in
 
 // LONG-POLLING, FORCED. The SDK's default streaming write channel hangs on the
 // family's network (writes never ack) while long-polling round-trips in <500ms —

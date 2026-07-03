@@ -30,6 +30,21 @@ npm run test:rules  # Firestore security-rules tests against the emulator
 Push to `main` → GitHub Actions builds and deploys to GitHub Pages at
 `https://cksainia.github.io/journal/` (same origin as the tracker → shared sign-in).
 
+## Data safety on deploys
+
+Deploys push **static files only** (GitHub Pages). Nothing in the pipeline can
+touch journal data:
+
+- All entries/reviews/settings live in **production Firestore** — app deploys
+  never read or write it.
+- Seed scripts (`seed`, `seed:db`) use the emulator's `Bearer owner` bypass,
+  which **does not exist in production**; dev also runs under the
+  `demo-aria-journal` project id, which has no cloud counterpart.
+- Firestore **rules** deploy only via an explicit manual
+  `firebase deploy --only firestore:rules` — never from CI.
+- The only destructive UI is the parent-only "Manage entries" delete, behind
+  auth + rules (+ PIN); the child can archive but never delete.
+
 ## Architecture notes
 
 - **Forced long-polling** (`experimentalForceLongPolling`) — the default Firestore
