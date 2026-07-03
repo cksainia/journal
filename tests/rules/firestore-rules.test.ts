@@ -119,9 +119,11 @@ describe('sections — the no-hard-delete rule', () => {
 })
 
 describe('Summer Tracker docs (existing behavior preserved)', () => {
-  it('parent (only) writes families/aria', async () => {
-    await assertSucceeds(setDoc(doc(asParent(), 'families', 'aria'), { completions: {} }))
-    await assertFails(setDoc(doc(asChild(), 'families', 'aria'), { completions: {} }))
+  it('parent (only) writes families/aria — and only with a current booksSeed (version gate)', async () => {
+    await assertSucceeds(setDoc(doc(asParent(), 'families', 'aria'), { completions: {}, booksSeed: 6 }))
+    await assertFails(setDoc(doc(asChild(), 'families', 'aria'), { completions: {}, booksSeed: 6 }))
+    // stale-client defense from the production rules: booksSeed < 6 rejected
+    await assertFails(setDoc(doc(asParent(), 'families', 'aria'), { completions: {}, booksSeed: 5 }))
   })
 
   it('child can write families/aria-claims (journal sync target)', async () => {
