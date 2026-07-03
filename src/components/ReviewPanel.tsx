@@ -40,8 +40,8 @@ export function ReviewPanel({
 }) {
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' })
   const [outcomes, setOutcomes] = useState<Record<string, CorrectionOutcome>>({})
-  const [recheck, setRecheck] = useState<'idle' | 'running' | 'done'>('idle')
-  const [recheckCounts, setRecheckCounts] = useState<{ spelling: number; grammar: number } | null>(null)
+  const [recheck, setRecheck] = useState<'idle' | 'running'>('idle')
+  const [isRecheck, setIsRecheck] = useState(false)
   const started = useRef(false)
 
   useEffect(() => {
@@ -79,22 +79,36 @@ export function ReviewPanel({
     recordOutcome(dateKey, section.id, phase.reviewId, correctionId, outcome).catch(() => {})
   }
 
+  /** Re-check = a FULL fresh review of the current text. Remaining problems
+   *  come back as actionable cards — never just a reassuring number while
+   *  new errors sit unseen. The original review logs the postFixRecheck. */
   async function runRecheck() {
     if (phase.kind !== 'result') return
     setRecheck('running')
     try {
-      const review = await getClaudeService().reviewEntry({
+      const service = getClaudeService()
+      const review = await service.reviewEntry({
         plainText: getPlainText(),
         gradeLevel: 3,
-        mode: section.type === 'guided' ? 'guided' : 'free',
+        mode: section.type === 'guided' ? 'guided' : section.type === 'nudge' ? 'nudge' : 'free',
         sparkleWordsOffered: section.sparkleWords?.offered ?? [],
       })
       const counts = { spelling: review.counts.spelling, grammar: review.counts.grammar }
-      setRecheckCounts(counts)
       await recordRecheck(dateKey, section.id, phase.reviewId, counts)
-      if (counts.spelling === 0) celebrate()
-      setRecheck('done')
-    } catch {
+      const reviewId = await saveReview(
+        dateKey,
+        section.id,
+        review,
+        'recheck',
+        service.live ? 'live' : 'mock',
+      )
+      setOutcomes({})
+      setIsRecheck(true)
+      setPhase({ kind: 'result', review, reviewId })
+      if (review.corrections.length === 0) celebrate()
+    } catch (e) {
+      console.warn('recheck failed:', (e as Error).message)
+    } finally {
       setRecheck('idle')
     }
   }
@@ -170,6 +184,14 @@ export function ReviewPanel({
         />
       ))}
 
+      {review.corrections.length === 0 && (
+        <Card className="text-center bg-teal-soft border-teal/30">
+          <p className="font-extrabold">
+            {isRecheck ? 'Sparkling clean now — great editing! 🎉' : 'Sparkling clean — no fixes needed! ✨'}
+          </p>
+        </Card>
+      )}
+
       {review.corrections.length > 0 && unresolved.length === 0 && (
         <Card className="text-center bg-teal-soft border-teal/30">
           <p className="font-extrabold">All checked — nice editing! 🧹</p>
@@ -179,17 +201,9 @@ export function ReviewPanel({
               🗺️ Revision quest: {QUESTS[review.counts.words % QUESTS.length]}
             </p>
           )}
-          {recheck === 'done' && recheckCounts ? (
-            <p className="font-bold text-teal mt-1">
-              {recheckCounts.spelling === 0
-                ? '0 spelling errors now! 🎉'
-                : `Down to ${recheckCounts.spelling} spelling thing${recheckCounts.spelling === 1 ? '' : 's'} — so close!`}
-            </p>
-          ) : (
-            <Button variant="soft" size="sm" className="mt-2" onClick={runRecheck} disabled={recheck === 'running'}>
-              {recheck === 'running' ? 'Checking again…' : 'Check again? 🔍'}
-            </Button>
-          )}
+          <Button variant="soft" size="sm" className="mt-2" onClick={runRecheck} disabled={recheck === 'running'}>
+            {recheck === 'running' ? 'Checking again…' : 'Check again? 🔍'}
+          </Button>
         </Card>
       )}
 
