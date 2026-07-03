@@ -119,9 +119,16 @@ function Dashboard({ email, onSignOut }: { email: string; onSignOut: () => void 
 
   const [reloadKey, setReloadKey] = useState(0)
   useEffect(() => {
-    setBundles(null)
+    setBundles(null) // range change → fresh load with spinner
     loadRange(range).then(setBundles).catch(() => setBundles([]))
-  }, [range, reloadKey])
+  }, [range])
+  useEffect(() => {
+    if (reloadKey === 0) return
+    // QUIET refresh after entry management: keep current data (and the
+    // manager's open state / scroll position) while new data loads.
+    loadRange(range).then(setBundles).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reloadKey])
   useEffect(() => watchMeta(setMeta), [])
 
   const weekStart = weekStartKey()
@@ -559,29 +566,55 @@ function ExportsCard({ bundles }: { bundles: DayBundle[] }) {
 }
 
 /** Entry management (spec §11): the child can only archive — here the parent
- *  archives, restores, or deletes forever. Every change recomputes the day's
- *  totals and re-syncs the tracker claim. */
+ *  archives, restores, or deletes forever, one at a time or as a multi-select
+ *  batch. Every change recomputes totals + tracker sync (once per day) and
+ *  the view stays right where you were. */
 function EntriesManager({ bundles, onChanged }: { bundles: DayBundle[]; onChanged: () => void }) {
   const [open, setOpen] = useState(false)
-  const [busy, setBusy] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
 
   const daysWithSections = [...bundles].reverse().filter((b) => b.sections.length > 0)
+  const allKeys = daysWithSections.flatMap((b) => b.sections.map((s) => `${b.day.dateKey}|${s.id}`))
+  const key = (dateKey: string, id: string) => `${dateKey}|${id}`
 
-  async function act(dateKey: string, sectionId: string, action: 'archive' | 'restore' | 'delete') {
-    const { setSectionStatus, deleteSectionForever } = await import('@/lib/journal')
-    if (action === 'delete' && !window.confirm('Delete this entry forever? This cannot be undone.'))
+  function toggle(k: string) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(k)) next.delete(k)
+      else next.add(k)
+      return next
+    })
+  }
+
+  async function act(items: { dateKey: string; sectionId: string }[], action: 'archive' | 'restore' | 'delete') {
+    if (!items.length) return
+    if (
+      action === 'delete' &&
+      !window.confirm(
+        items.length === 1
+          ? 'Delete this entry forever? This cannot be undone.'
+          : `Delete ${items.length} entries forever? This cannot be undone.`,
+      )
+    )
       return
-    setBusy(sectionId)
+    setBusy(true)
     try {
-      if (action === 'delete') await deleteSectionForever(dateKey, sectionId)
-      else await setSectionStatus(dateKey, sectionId, action === 'archive' ? 'archived' : 'saved')
-      onChanged()
+      const { applySectionActions } = await import('@/lib/journal')
+      await applySectionActions(items, action)
+      setSelected(new Set())
+      onChanged() // quiet background refresh — the manager stays open, right here
     } catch (e) {
       console.warn('entry action failed:', (e as Error).message)
     } finally {
-      setBusy(null)
+      setBusy(false)
     }
   }
+
+  const selectedItems = [...selected].map((k) => {
+    const [dateKey, sectionId] = k.split('|')
+    return { dateKey, sectionId }
+  })
 
   return (
     <Card>
@@ -596,50 +629,84 @@ function EntriesManager({ bundles, onChanged }: { bundles: DayBundle[]; onChange
         Tracker sync update automatically. Aria can never delete — only you can.
       </p>
       {open && (
-        <div className="mt-3 flex flex-col gap-3 max-h-96 overflow-y-auto pr-1">
-          {daysWithSections.length === 0 && (
-            <p className="text-muted text-sm">No entries in this date range.</p>
-          )}
-          {daysWithSections.map((b) => (
-            <div key={b.day.dateKey}>
-              <p className="font-bold text-sm">{b.day.dateKey}</p>
-              {b.sections.map((s) => (
-                <div
-                  key={s.id}
-                  className="flex items-center gap-2 border border-line rounded-xl p-2 mt-1"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold">
-                      {s.type}
-                      {s.status === 'archived' && (
-                        <span className="text-coral"> · archived</span>
-                      )}
-                      {s.status === 'draft' && <span className="text-muted"> · draft</span>}
-                    </p>
-                    <p className="text-muted text-xs truncate">
-                      {s.plainText?.trim() || ((s.panels?.length ?? 0) > 0 ? '(drawing)' : '(empty)')}
-                    </p>
+        <>
+          {/* batch toolbar */}
+          <div className="flex flex-wrap items-center gap-2 mt-3 sticky top-0 bg-paper z-10 py-1">
+            <label className="flex items-center gap-2 text-xs font-bold min-h-9">
+              <input
+                type="checkbox"
+                className="size-4 accent-teal"
+                checked={selected.size > 0 && selected.size === allKeys.length}
+                onChange={(e) => setSelected(e.target.checked ? new Set(allKeys) : new Set())}
+                aria-label="Select all entries"
+              />
+              {selected.size > 0 ? `${selected.size} selected` : 'Select all'}
+            </label>
+            {selected.size > 0 && (
+              <>
+                <Button size="sm" variant="secondary" disabled={busy} onClick={() => void act(selectedItems, 'archive')}>
+                  Archive selected
+                </Button>
+                <Button size="sm" variant="secondary" disabled={busy} onClick={() => void act(selectedItems, 'restore')}>
+                  Restore selected
+                </Button>
+                <Button size="sm" variant="ghost" className="text-coral" disabled={busy} onClick={() => void act(selectedItems, 'delete')}>
+                  {busy ? 'Working…' : 'Delete selected'}
+                </Button>
+              </>
+            )}
+          </div>
+
+          <div className="mt-2 flex flex-col gap-3 max-h-96 overflow-y-auto pr-1">
+            {daysWithSections.length === 0 && (
+              <p className="text-muted text-sm">No entries in this date range.</p>
+            )}
+            {daysWithSections.map((b) => (
+              <div key={b.day.dateKey}>
+                <p className="font-bold text-sm">{b.day.dateKey}</p>
+                {b.sections.map((s) => (
+                  <div
+                    key={s.id}
+                    className="flex items-center gap-2 border border-line rounded-xl p-2 mt-1"
+                  >
+                    <input
+                      type="checkbox"
+                      className="size-4 accent-teal shrink-0"
+                      checked={selected.has(key(b.day.dateKey, s.id))}
+                      onChange={() => toggle(key(b.day.dateKey, s.id))}
+                      aria-label={`Select ${s.type} entry from ${b.day.dateKey}`}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold">
+                        {s.type}
+                        {s.status === 'archived' && <span className="text-coral"> · archived</span>}
+                        {s.status === 'draft' && <span className="text-muted"> · draft</span>}
+                      </p>
+                      <p className="text-muted text-xs truncate">
+                        {s.plainText?.trim() || ((s.panels?.length ?? 0) > 0 ? '(drawing)' : '(empty)')}
+                      </p>
+                    </div>
+                    {s.status === 'archived' ? (
+                      <Button size="sm" variant="secondary" disabled={busy}
+                        onClick={() => void act([{ dateKey: b.day.dateKey, sectionId: s.id }], 'restore')}>
+                        Restore
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="secondary" disabled={busy}
+                        onClick={() => void act([{ dateKey: b.day.dateKey, sectionId: s.id }], 'archive')}>
+                        Archive
+                      </Button>
+                    )}
+                    <Button size="sm" variant="ghost" className="text-coral" disabled={busy}
+                      onClick={() => void act([{ dateKey: b.day.dateKey, sectionId: s.id }], 'delete')}>
+                      Delete
+                    </Button>
                   </div>
-                  {s.status === 'archived' ? (
-                    <Button size="sm" variant="secondary" disabled={busy === s.id}
-                      onClick={() => void act(b.day.dateKey, s.id, 'restore')}>
-                      Restore
-                    </Button>
-                  ) : (
-                    <Button size="sm" variant="secondary" disabled={busy === s.id}
-                      onClick={() => void act(b.day.dateKey, s.id, 'archive')}>
-                      Archive
-                    </Button>
-                  )}
-                  <Button size="sm" variant="ghost" className="text-coral" disabled={busy === s.id}
-                    onClick={() => void act(b.day.dateKey, s.id, 'delete')}>
-                    Delete
-                  </Button>
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </Card>
   )

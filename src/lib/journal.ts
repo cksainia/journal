@@ -244,11 +244,31 @@ export async function setSectionStatus(
 /** Hard delete (PARENT ONLY, rules-enforced): removes the section AND its
  *  reviews (Firestore doesn't cascade), then recomputes totals + sync. */
 export async function deleteSectionForever(dateKey: string, sectionId: string): Promise<void> {
+  await applySectionActions([{ dateKey, sectionId }], 'delete')
+}
+
+/** Batch entry actions: apply to every item, then recompute totals + tracker
+ *  sync ONCE per affected day (not once per entry). */
+export async function applySectionActions(
+  items: { dateKey: string; sectionId: string }[],
+  action: 'archive' | 'restore' | 'delete',
+): Promise<void> {
   const { deleteDoc, getDocs, collection: coll } = await import('firebase/firestore')
-  const reviewsSnap = await getDocs(
-    coll(db, 'journalDays', dayIdFor(dateKey), 'sections', sectionId, 'reviews'),
-  )
-  await Promise.all(reviewsSnap.docs.map((r) => deleteDoc(r.ref)))
-  await deleteDoc(doc(sectionsRef(dateKey), sectionId))
-  await retryTrackerSync(dateKey)
+  for (const { dateKey, sectionId } of items) {
+    if (action === 'delete') {
+      const reviewsSnap = await getDocs(
+        coll(db, 'journalDays', dayIdFor(dateKey), 'sections', sectionId, 'reviews'),
+      )
+      await Promise.all(reviewsSnap.docs.map((r) => deleteDoc(r.ref)))
+      await deleteDoc(doc(sectionsRef(dateKey), sectionId))
+    } else {
+      await updateDoc(doc(sectionsRef(dateKey), sectionId), {
+        status: action === 'archive' ? 'archived' : 'saved',
+        updatedAt: serverTimestamp(),
+      })
+    }
+  }
+  for (const dateKey of new Set(items.map((i) => i.dateKey))) {
+    await retryTrackerSync(dateKey)
+  }
 }
