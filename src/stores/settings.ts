@@ -43,6 +43,8 @@ export const useSettings = create<SettingsState>((set, get) => ({
   loaded: false,
 
   async save(patch) {
+    const { isStale } = await import('@/lib/version')
+    if (isStale()) return // whole-object write from an old tab could revert newer settings
     const next = { ...get().settings, ...patch }
     set({ settings: next })
     await setDoc(metaRef(), { settings: next }, { merge: true })

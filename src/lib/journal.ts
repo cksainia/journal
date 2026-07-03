@@ -13,7 +13,8 @@ import { FAMILY_ID, CHILD_UID } from './constants'
 import { compactDateKey, dateKeyFor, deviceTimezone } from './dateKey'
 import { countWords, countSentences } from './counting'
 import { computeTotals, totalsEqual, type DailyTotals } from './totals'
-import { syncDayToTracker, type SyncStatus } from './trackerSync'
+import { syncDayToTracker, trackerTargetPath, type SyncStatus } from './trackerSync'
+import { isStale } from './version'
 
 export { computeTotals, totalsEqual, type DailyTotals }
 
@@ -130,6 +131,7 @@ export async function saveCheckin(dateKey: string, checkin: Checkin): Promise<vo
 
 /** Persist her page stickers (whole-array write — a page holds a handful). */
 export async function saveStickers(dateKey: string, stickers: Sticker[]): Promise<void> {
+  if (isStale()) return // whole-array write from old code could drop newer stickers
   await updateDoc(dayRef(dateKey), { stickers, updatedAt: serverTimestamp() })
 }
 
@@ -200,6 +202,17 @@ export async function saveSectionText(
  * and the tracker gets exactly one merge-write per real change.
  */
 export async function updateDayTotals(dateKey: string, totals: DailyTotals): Promise<SyncStatus> {
+  // VERSION GATE: a stale tab never writes derived/shared values. Content is
+  // already saved; totals + the tracker claim recompute after a refresh.
+  if (isStale()) {
+    return {
+      status: 'error',
+      targetPath: trackerTargetPath(dateKey),
+      syncedSentences: totals.sentences,
+      lastSyncedAt: Date.now(),
+      error: 'this tab is running an old version — refresh to sync',
+    }
+  }
   const sync = await syncDayToTracker(db, dateKey, totals)
   await updateDoc(dayRef(dateKey), {
     dailyTotals: totals,

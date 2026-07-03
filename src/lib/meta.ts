@@ -1,6 +1,7 @@
 import { arrayUnion, doc, onSnapshot, setDoc } from 'firebase/firestore'
 import { db } from './firebase'
 import { FAMILY_ID } from './constants'
+import { isStale } from './version'
 
 /**
  * journalMeta/{familyId} — small shared doc for the word-collector shelf,
@@ -18,12 +19,14 @@ export const metaRef = () => doc(db, 'journalMeta', FAMILY_ID)
 
 /** Word collector (spec §4.4): interesting words she used or learned. */
 export async function addWordsToShelf(words: string[]): Promise<void> {
+  if (isStale()) return
   const clean = words.map((w) => w.trim().toLowerCase()).filter((w) => /^[a-z''-]{2,24}$/i.test(w))
   if (!clean.length) return
   await setDoc(metaRef(), { wordShelf: arrayUnion(...clean) }, { merge: true })
 }
 
 export async function saveFavoriteSentence(fav: FavoriteSentence): Promise<void> {
+  if (isStale()) return
   await setDoc(metaRef(), { favoriteSentences: arrayUnion(fav) }, { merge: true })
 }
 

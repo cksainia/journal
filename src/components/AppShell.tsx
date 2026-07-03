@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useSession } from '@/stores/session'
+import { useVersion } from '@/lib/version'
 import { cn } from '@/lib/utils'
 
 const TABS = [
@@ -17,10 +18,27 @@ const TABS = [
  */
 export function AppShell() {
   const role = useSession((s) => s.role)
+  const stale = useVersion((s) => s.stale)
   const tabs = TABS.filter((t) => !t.parentOnly || role === 'parent')
 
   return (
     <div className="min-h-dvh lg:flex">
+      {stale && (
+        <div
+          role="status"
+          className="fixed top-0 inset-x-0 z-50 bg-sunny text-ink font-extrabold text-sm
+                     flex items-center justify-center gap-3 px-4 py-2.5 shadow-card"
+        >
+          ✨ A sparkly new version of your journal is ready!
+          <button
+            onClick={() => location.reload()}
+            className="bg-ink text-white rounded-full px-4 py-1.5 min-h-9
+                       focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-lavender"
+          >
+            Refresh
+          </button>
+        </div>
+      )}
       {/* side nav — wide screens */}
       <nav
         aria-label="Main"
