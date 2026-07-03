@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ReviewSchema } from '../../src/services/claude/types'
+import { ReviewSchema, sanitizeReview } from '../../src/services/claude/types'
 import { mockClaudeService } from '../../src/services/claude/mockClaudeService'
 
 const validReview = {
@@ -30,17 +30,23 @@ describe('ReviewSchema guardrails (spec §4.5)', () => {
   it('accepts a valid review', () => {
     expect(ReviewSchema.parse(validReview).encouragement).toBeTruthy()
   })
-  it('REJECTS more than 5 corrections (hard cap)', () => {
+  it('caps corrections at 5 by truncation — never by failing the review', () => {
     const over = { ...validReview, corrections: [1, 2, 3, 4, 5, 6].map((n) => correction('c' + n)) }
-    expect(() => ReviewSchema.parse(over)).toThrow()
+    expect(ReviewSchema.parse(over).corrections).toHaveLength(5)
   })
-  it('REJECTS harsh labels in child-facing text', () => {
-    expect(() =>
-      ReviewSchema.parse({ ...validReview, encouragement: 'This was a bad story.' }),
-    ).toThrow()
-    expect(() =>
-      ReviewSchema.parse({ ...validReview, strengths: ['You failed less this time.'] }),
-    ).toThrow()
+  it('SANITIZES harsh labels in child-facing text (review survives, word never renders)', () => {
+    const parsed = ReviewSchema.parse({
+      ...validReview,
+      encouragement: 'This was a bad story.',
+      strengths: ['You failed less this time.'],
+      corrections: [{ ...correction('c1'), explanationKid: 'This spelling is wrong.' }],
+    })
+    const clean = sanitizeReview(parsed)
+    expect(clean.encouragement).not.toMatch(/\bbad\b/i)
+    expect(clean.strengths[0]).not.toMatch(/\bfailed\b/i)
+    expect(clean.corrections[0].explanationKid).not.toMatch(/\bwrong\b/i)
+    expect(clean.corrections[0].explanationKid).toContain('friend') // still points at the fix
+    expect(clean.counts).toEqual(parsed.counts) // everything else untouched
   })
   it('REJECTS malformed rubric values', () => {
     expect(() =>

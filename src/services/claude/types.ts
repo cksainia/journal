@@ -7,11 +7,10 @@ import { z } from 'zod'
  * the schemas so they're enforced uniformly on every path.
  */
 
-const KID_SAFE = /\b(bad|wrong|weak|failed|failure|terrible|poor)\b/i
-const kidFacing = (max = 400) =>
-  z.string().min(1).max(max).refine((s) => !KID_SAFE.test(s), {
-    message: 'harsh label in child-facing text',
-  })
+// Harsh labels never reach the child — but a stray "wrong" from a live model
+// must SOFTEN the one string, not sink the whole review (see sanitizeReview).
+export const HARSH_LABELS = /\b(bad|wrong|weak|failed|failure|terrible|poor)\b/i
+const kidFacing = (max = 400) => z.string().min(1).max(max)
 
 export const CorrectionSchema = z.object({
   id: z.string(),
@@ -34,7 +33,7 @@ export const ReviewSchema = z.object({
   nextStep: z
     .object({ label: kidFacing(100), reason: kidFacing(200), example: kidFacing(200).optional() })
     .nullable(),
-  corrections: z.array(CorrectionSchema).max(5), // hard cap (spec §4.5)
+  corrections: z.array(CorrectionSchema).transform((a) => a.slice(0, 5)), // hard cap (§4.5) — enforced by truncation, never by failing the review
   counts: z.object({
     words: z.number().int().min(0),
     sentences: z.number().int().min(0),
@@ -73,6 +72,41 @@ export const GuidedPromptSchema = z.object({
   planningChips: z.array(z.string()).min(3).max(6),
 })
 export type GuidedPrompt = z.infer<typeof GuidedPromptSchema>
+
+const soften = (s: string, fallback: string) => (HARSH_LABELS.test(s) ? fallback : s)
+
+/**
+ * Kid-safety guarantee, applied AFTER structural validation on every live
+ * response: any child-facing string containing a harsh label is replaced with
+ * a warm generic — the review survives, the harsh word never renders.
+ */
+export function sanitizeReview(r: Review): Review {
+  return {
+    ...r,
+    encouragement: soften(r.encouragement, 'What a wonderful piece of writing — I loved reading it! ✨'),
+    strengths: r.strengths.map((s) => soften(s, 'You put real thought into this entry!')),
+    nextStep: r.nextStep
+      ? {
+          label: soften(r.nextStep.label, 'Add one more detail'),
+          reason: soften(r.nextStep.reason, 'It helps your reader picture the moment.'),
+          ...(r.nextStep.example
+            ? { example: soften(r.nextStep.example, 'What happened next?') }
+            : {}),
+        }
+      : null,
+    corrections: r.corrections.map((c) => ({
+      ...c,
+      explanationKid: soften(c.explanationKid, `Here's the tricky part — try: ${c.suggestion}`),
+    })),
+  }
+}
+
+export function sanitizeInsights(w: WeeklyInsights): WeeklyInsights {
+  return {
+    ...w,
+    kidVoiceCard: soften(w.kidVoiceCard, 'Your writing voice is bright and full of ideas — keep going! 💛'),
+  }
+}
 
 export const WeeklyInsightsSchema = z.object({
   schemaVersion: z.string(),

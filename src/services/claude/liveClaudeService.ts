@@ -2,6 +2,8 @@ import {
   GuidedPromptSchema,
   ReviewSchema,
   WeeklyInsightsSchema,
+  sanitizeInsights,
+  sanitizeReview,
   type ClaudeService,
   type GuidedPromptInput,
   type ReviewInput,
@@ -35,9 +37,10 @@ export function createLiveClaudeService(workerUrl: string): ClaudeService {
     live: true,
     generateGuidedPrompt: (input: GuidedPromptInput) =>
       call('generateGuidedPrompt', input, GuidedPromptSchema),
-    reviewEntry: (input: ReviewInput) => call('reviewEntry', input, ReviewSchema),
+    reviewEntry: (input: ReviewInput) =>
+      call('reviewEntry', input, ReviewSchema).then(sanitizeReview),
     generateWeeklyInsights: (input: WeeklyInsightsInput) =>
-      call('generateWeeklyInsights', input, WeeklyInsightsSchema),
+      call('generateWeeklyInsights', input, WeeklyInsightsSchema).then(sanitizeInsights),
     followUpQuestion: async (plainText: string) =>
       call('followUpQuestion', { plainText }, z.object({ question: z.string().min(1).max(200) })).then(
         (r) => r.question,
