@@ -2,18 +2,6 @@ import { Card, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useSession } from '@/stores/session'
 
-export function MyJournal() {
-  return (
-    <Card className="text-center">
-      <span className="text-5xl" aria-hidden>
-        📅
-      </span>
-      <CardTitle className="mt-2">My Journal</CardTitle>
-      <p className="text-muted text-sm mt-1">Your calendar of stories opens in Phase 2 💛</p>
-    </Card>
-  )
-}
-
 export function MyProgress() {
   return (
     <Card className="text-center">

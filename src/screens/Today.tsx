@@ -3,22 +3,28 @@ import { onSnapshot, orderBy, query } from 'firebase/firestore'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { SectionEditor } from '@/components/SectionEditor'
+import { CheckIn } from '@/components/CheckIn'
+import { SparkChooser } from '@/components/SparkChooser'
 import { dateKeyFor } from '@/lib/dateKey'
 import {
   computeTotals,
   createSection,
   dayRef,
+  saveCheckin,
   sectionsRef,
   totalsEqual,
   updateDayTotals,
+  type Checkin,
   type JournalDay,
   type JournalSection,
+  type SectionType,
 } from '@/lib/journal'
 import { CHILD_NAME } from '@/lib/constants'
 
 /**
- * Today (spec §3, §10): never a marketing page — the exact next action.
- * "Start today's entry" / "Keep writing" (one-tap resume) / "You wrote today! 🎉"
+ * Today (spec §3, §4): the session arc entry point, always showing the exact
+ * next action — Start today's check-in → Choose a spark → Keep writing →
+ * You wrote today! An unfinished draft resumes in one tap.
  */
 export function Today() {
   const dateKey = dateKeyFor()
@@ -26,7 +32,9 @@ export function Today() {
   const [sections, setSections] = useState<JournalSection[]>([])
   const [loaded, setLoaded] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [starting, setStarting] = useState(false)
+  const [checkingIn, setCheckingIn] = useState(false)
+  const [choosing, setChoosing] = useState(false)
+  const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     const stopDay = onSnapshot(dayRef(dateKey), (snap) => {
@@ -44,7 +52,7 @@ export function Today() {
   }, [dateKey])
 
   // Deterministic totals recompute — mirrors what the Phase 3 sync adapter will
-  // do server-side. Write-frugal: only when the numbers actually changed.
+  // do. Write-frugal: only when the numbers actually changed.
   useEffect(() => {
     if (!day || sections.length === 0) return
     const totals = computeTotals(sections)
@@ -58,25 +66,43 @@ export function Today() {
   const wroteToday = liveSections.some((s) => s.status === 'saved')
   const editing = editingId ? sections.find((s) => s.id === editingId) : undefined
 
-  async function startWriting() {
-    setStarting(true)
+  async function onCheckinDone(checkin: Checkin) {
+    setBusy(true)
     try {
-      const id = await createSection(dateKey, 'free')
+      await saveCheckin(dateKey, checkin)
+      setCheckingIn(false)
+      setChoosing(true)
+    } catch (e) {
+      console.warn('check-in save failed:', (e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function onPickSpark(type: SectionType, opts?: { title?: string; prompt?: string }) {
+    setBusy(true)
+    try {
+      const id = await createSection(dateKey, type, opts)
+      setChoosing(false)
       setEditingId(id)
     } finally {
-      setStarting(false)
+      setBusy(false)
     }
   }
 
   if (editing) {
-    return (
-      <SectionEditor
-        dateKey={dateKey}
-        section={editing}
-        onClose={() => setEditingId(null)}
-      />
-    )
+    return <SectionEditor dateKey={dateKey} section={editing} onClose={() => setEditingId(null)} />
   }
+
+  if (checkingIn) {
+    return <CheckIn dateKey={dateKey} onDone={onCheckinDone} />
+  }
+
+  if (choosing) {
+    return <SparkChooser dateKey={dateKey} onPick={onPickSpark} />
+  }
+
+  const needsCheckin = !day?.checkin
 
   return (
     <div className="flex flex-col gap-4">
@@ -97,6 +123,17 @@ export function Today() {
             Keep writing
           </Button>
         </Card>
+      ) : needsCheckin ? (
+        <Card className="text-center flex flex-col items-center gap-3">
+          <span className="text-5xl" aria-hidden>
+            🦉
+          </span>
+          <p className="font-extrabold text-xl">Ready for today?</p>
+          <p className="text-muted text-sm">First, a quick check-in — all taps, no typing!</p>
+          <Button size="lg" onClick={() => setCheckingIn(true)} disabled={busy}>
+            Start today's check-in ☀️
+          </Button>
+        </Card>
       ) : wroteToday ? (
         <Card className="text-center flex flex-col items-center gap-3 bg-teal-soft border-teal/30">
           <span className="text-5xl" aria-hidden>
@@ -106,26 +143,20 @@ export function Today() {
           <p className="text-muted text-sm">
             {day?.dailyTotals.sentences ?? 0} sentences · {day?.dailyTotals.words ?? 0} words
           </p>
-          <Button variant="soft" size="lg" onClick={startWriting} disabled={starting}>
+          <Button variant="soft" size="lg" onClick={() => setChoosing(true)} disabled={busy}>
             Write some more ✨
           </Button>
         </Card>
       ) : (
         <Card className="text-center flex flex-col items-center gap-3">
           <span className="text-5xl" aria-hidden>
-            🦉
+            ⚡
           </span>
-          <p className="font-extrabold text-xl">Ready for today's story?</p>
-          <Button size="lg" onClick={startWriting} disabled={starting}>
-            {starting ? 'Opening…' : 'Start writing! ✨'}
+          <p className="font-extrabold text-xl">Check-in done — time to write!</p>
+          <Button size="lg" onClick={() => setChoosing(true)} disabled={busy}>
+            Choose your spark ✨
           </Button>
         </Card>
-      )}
-
-      {wroteToday && draft == null && liveSections.length > 0 && (
-        <p className="text-center text-xs text-muted">
-          Check-in, sparks, and drawing modes arrive in Phase 2 💛
-        </p>
       )}
     </div>
   )

@@ -2,7 +2,8 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AppShell } from '@/components/AppShell'
 import { SignIn } from '@/screens/SignIn'
 import { Today } from '@/screens/Today'
-import { MyJournal, MyProgress, ParentDashboard } from '@/screens/Placeholders'
+import { MyJournal } from '@/screens/MyJournal'
+import { MyProgress, ParentDashboard } from '@/screens/Placeholders'
 import { useSession } from '@/stores/session'
 
 function Splash() {

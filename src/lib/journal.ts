@@ -20,14 +20,26 @@ export interface JournalSection {
   id: string
   type: SectionType
   title: string
+  prompt: string // nudge/guided prompt text shown above the editor ('' for free)
   text: string // TipTap HTML
   plainText: string
   wordCount: number
   sentenceCount: number
+  activeWPM: number | null // silent typing fluency (spec §6.2) — parent-only, never shown to Aria
   status: SectionStatus
   clientId: string
   createdAt?: unknown
   updatedAt?: unknown
+}
+
+/** Structured check-in metadata (spec §4.1) stored on the day document. */
+export interface Checkin {
+  moods: string[]
+  location: string | null
+  activities: string[]
+  somethingElse: string
+  dayRating: string | null
+  bonus: { question: string; answer: 'yes' | 'no' | null }
 }
 
 export interface DailyTotals {
@@ -43,7 +55,7 @@ export interface JournalDay {
   childId: string
   dateKey: string
   timezone: string
-  checkin: null | Record<string, unknown>
+  checkin: Checkin | null
   dailyTotals: DailyTotals
   streakCredit: boolean
   createdAt?: unknown
@@ -96,21 +108,29 @@ export async function ensureDay(dateKey: string = dateKeyFor()): Promise<void> {
   await setDoc(ref, { ...day, createdAt: serverTimestamp(), updatedAt: serverTimestamp() })
 }
 
+/** Save the check-in onto the day doc (creates the day if needed). */
+export async function saveCheckin(dateKey: string, checkin: Checkin): Promise<void> {
+  await ensureDay(dateKey)
+  await updateDoc(dayRef(dateKey), { checkin, updatedAt: serverTimestamp() })
+}
+
 export async function createSection(
   dateKey: string,
   type: SectionType,
-  title = '',
+  opts: { title?: string; prompt?: string } = {},
 ): Promise<string> {
   await ensureDay(dateKey)
   const ref = doc(sectionsRef(dateKey))
   const section: JournalSection = {
     id: ref.id,
     type,
-    title,
+    title: opts.title ?? '',
+    prompt: opts.prompt ?? '',
     text: '',
     plainText: '',
     wordCount: 0,
     sentenceCount: 0,
+    activeWPM: null,
     status: 'draft',
     clientId,
   }
@@ -125,6 +145,7 @@ export async function saveSectionText(
   html: string,
   plainText: string,
   status: SectionStatus = 'draft',
+  extras: { activeWPM?: number | null } = {},
 ): Promise<void> {
   await updateDoc(doc(sectionsRef(dateKey), sectionId), {
     text: html,
@@ -133,6 +154,7 @@ export async function saveSectionText(
     sentenceCount: countSentences(plainText),
     status,
     clientId,
+    ...(extras.activeWPM != null ? { activeWPM: Math.round(extras.activeWPM) } : {}),
     updatedAt: serverTimestamp(),
   })
 }

@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "emulators": "PATH=\"/opt/homebrew/opt/openjdk/bin:$PATH\" firebase emulators:start --project demo-aria-journal",
     "seed": "node scripts/seed-emulator.mjs",
+    "seed:db": "node scripts/seed-db.mjs",
     "test": "vitest run tests/unit",
     "test:rules": "PATH=\"/opt/homebrew/opt/openjdk/bin:$PATH\" firebase emulators:exec --only firestore --project demo-aria-journal \"vitest run tests/rules\""
   },
