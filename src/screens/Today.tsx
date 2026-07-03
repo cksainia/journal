@@ -6,6 +6,7 @@ import { SectionEditor } from '@/components/SectionEditor'
 import { CheckIn } from '@/components/CheckIn'
 import { SparkChooser } from '@/components/SparkChooser'
 import { GuidedSetup } from '@/components/GuidedSetup'
+import { DrawingEditor } from '@/components/DrawingEditor'
 import { dateKeyFor } from '@/lib/dateKey'
 import {
   computeTotals,
@@ -101,7 +102,11 @@ export function Today() {
   }
 
   if (editing) {
-    return <SectionEditor dateKey={dateKey} section={editing} onClose={() => setEditingId(null)} />
+    return editing.type === 'drawing' || editing.type === 'comic' ? (
+      <DrawingEditor dateKey={dateKey} section={editing} onClose={() => setEditingId(null)} />
+    ) : (
+      <SectionEditor dateKey={dateKey} section={editing} onClose={() => setEditingId(null)} />
+    )
   }
 
   if (checkingIn) {

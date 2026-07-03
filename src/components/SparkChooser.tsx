@@ -32,7 +32,8 @@ export function SparkChooser({
     { type: 'free', emoji: '🖊️', title: 'Free Writing', blurb: 'Anything you want — your page!' },
     { type: 'guided', emoji: '✨', title: 'Guided Writing', blurb: 'A prompt made just for your day!' },
     { type: 'guided', emoji: '📖', title: 'About My Book', blurb: 'Write about what you are reading!', opts: { bookMode: true } },
-    { type: 'drawing', emoji: '🎨', title: 'Drawing', blurb: 'Coming soon!', soon: true },
+    { type: 'drawing', emoji: '🎨', title: 'Drawing', blurb: 'Draw your day — add a caption!', opts: { title: 'My drawing' } },
+    { type: 'comic', emoji: '🗯️', title: 'Comic', blurb: 'Tell a story in 1–3 panels!', opts: { title: 'My comic' } },
   ]
 
   return (

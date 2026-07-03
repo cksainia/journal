@@ -177,15 +177,35 @@ function DayDetail({ dateKey, day }: { dateKey: string; day: JournalDay | null }
       ) : live.length === 0 ? (
         <p className="text-muted text-sm">Checked in, but no writing yet.</p>
       ) : (
-        live.map((s) => (
-          <div key={s.id} className="border border-line rounded-2xl p-3">
-            <p className="text-xs font-extrabold uppercase tracking-wide text-muted">
-              {s.type === 'nudge' ? '💭 Nudge' : s.type === 'free' ? '🖊️ Free writing' : s.type}
-            </p>
-            {s.prompt && <p className="text-sm text-muted mt-1 italic">“{s.prompt}”</p>}
-            <p className="mt-1 whitespace-pre-wrap">{s.plainText || <em className="text-muted">…</em>}</p>
-          </div>
-        ))
+        live.map((s) => {
+          const panels = (s as JournalSection & { panels?: { image: string; caption: string }[] }).panels ?? []
+          const label =
+            s.type === 'nudge' ? '💭 Nudge'
+            : s.type === 'free' ? '🖊️ Free writing'
+            : s.type === 'guided' ? `✨ ${s.title || 'Guided'}`
+            : s.type === 'drawing' ? '🎨 Drawing'
+            : s.type === 'comic' ? '🗯️ Comic'
+            : s.type
+          return (
+            <div key={s.id} className="border border-line rounded-2xl p-3">
+              <p className="text-xs font-extrabold uppercase tracking-wide text-muted">{label}</p>
+              {s.prompt && <p className="text-sm text-muted mt-1 italic">“{s.prompt}”</p>}
+              {panels.length > 0 && (
+                <div className="flex gap-2 mt-2">
+                  {panels.map((p, i) => (
+                    <img
+                      key={i}
+                      src={p.image}
+                      alt={p.caption || `Panel ${i + 1}`}
+                      className="w-1/3 max-w-40 rounded-xl border border-line"
+                    />
+                  ))}
+                </div>
+              )}
+              <p className="mt-1 whitespace-pre-wrap">{s.plainText || <em className="text-muted">…</em>}</p>
+            </div>
+          )
+        })
       )}
     </Card>
   )
