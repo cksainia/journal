@@ -36,10 +36,12 @@ html, body {
 }
 
 /* Child editor: big, calm, friendly (spec §10 — ≥18px, generous line height).
+   Her words appear in the same Caveat handwriting as her journal book.
    Native red squiggles off — the app has its own gentle review step. */
 .kid-editor .tiptap {
-  font-size: 20px;
-  line-height: 1.7;
+  font-family: "Caveat", cursive;
+  font-size: 28px;
+  line-height: 1.6;
   min-height: 40vh;
   outline: none;
 }
