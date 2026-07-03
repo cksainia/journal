@@ -9,6 +9,7 @@ import { dateKeyFor } from '@/lib/dateKey'
 import { dayIdFor, type JournalDay, type JournalSection } from '@/lib/journal'
 import { loadRange, type DayBundle } from '@/lib/analytics'
 import { MOODS, RATINGS } from '@/components/CheckIn'
+import { JournalBook, JournalPage } from '@/components/JournalBook'
 import { cn } from '@/lib/utils'
 
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
@@ -311,70 +312,26 @@ function CarouselView() {
       </div>
 
       {memory && (
-        <Card className="bg-sunny-soft border-sunny/50">
-          <p className="text-xs font-extrabold uppercase tracking-wide text-muted">🫙 From your memory jar</p>
-          <DayCard bundle={memory} plain />
-          <Button variant="ghost" size="sm" onClick={() => setMemory(null)}>Put it back</Button>
-        </Card>
+        <div className="relative">
+          <p className="font-hand-display text-xl text-muted mb-1">🫙 shaken from your memory jar…</p>
+          <JournalPage bundle={memory} compact />
+          <Button variant="ghost" size="sm" className="mt-1" onClick={() => setMemory(null)}>Put it back</Button>
+        </div>
       )}
 
       {withEntries.length === 0 ? (
         <Card className="text-center text-muted py-8">Your book is waiting for its first page 💛</Card>
       ) : filtering ? (
-        <div className="flex flex-col gap-3" aria-label="Search results">
+        <div className="flex flex-col gap-4" aria-label="Search results">
           {filtered.length === 0 ? (
             <Card className="text-center text-muted py-6">Nothing matched — try different words?</Card>
           ) : (
-            filtered.map((b) => (
-              <Card key={b.day.dateKey}>
-                <DayCard bundle={b} />
-              </Card>
-            ))
+            filtered.map((b) => <JournalPage key={b.day.dateKey} bundle={b} compact />)
           )}
         </div>
       ) : (
-        <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 -mx-4 px-4" aria-label="Journal pages, swipe to browse">
-          {withEntries.map((b) => (
-            <Card key={b.day.dateKey} className="min-w-[85%] sm:min-w-[70%] snap-center">
-              <DayCard bundle={b} />
-            </Card>
-          ))}
-        </div>
+        <JournalBook bundles={[...withEntries].reverse()} />
       )}
-    </div>
-  )
-}
-
-function DayCard({ bundle, plain = false }: { bundle: DayBundle; plain?: boolean }) {
-  const { day, sections } = bundle
-  const live = sections.filter(
-    (s) => s.status !== 'archived' && (s.plainText?.trim() || (s.panels?.length ?? 0) > 0),
-  )
-  const pretty = new Date(day.dateKey + 'T12:00:00').toLocaleDateString(undefined, {
-    weekday: 'long', month: 'long', day: 'numeric',
-  })
-  return (
-    <div className={plain ? '' : 'flex flex-col gap-2'}>
-      <div className="flex items-center justify-between">
-        <p className="font-extrabold">{pretty}</p>
-        <span aria-hidden>{moodEmoji(day) ?? ''}</span>
-      </div>
-      {live.map((s) => (
-        <div key={s.id} className="mt-1">
-          {s.prompt && <p className="text-xs text-muted italic">"{s.prompt}"</p>}
-          {(s.panels ?? []).length > 0 && (
-            <div className="flex gap-2 my-1">
-              {s.panels!.map((p, i) => (
-                <img key={i} src={p.image} alt={p.caption || `Panel ${i + 1}`} className="w-1/3 max-w-32 rounded-lg border border-line" />
-              ))}
-            </div>
-          )}
-          {s.plainText && <p className="text-sm mt-0.5 line-clamp-4 whitespace-pre-wrap">{s.plainText}</p>}
-        </div>
-      ))}
-      <p className="text-xs text-muted font-bold mt-1">
-        {day.dailyTotals.sentences} sentences · {day.dailyTotals.words} words
-      </p>
     </div>
   )
 }

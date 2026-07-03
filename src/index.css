@@ -1,4 +1,7 @@
 @import "tailwindcss";
+/* Handwriting fonts — bundled locally so the PWA stays fully offline-capable */
+@import "@fontsource/patrick-hand";
+@import "@fontsource/caveat/700.css";
 
 /* ── Design tokens ─────────────────────────────────────────────
    Warm, peppy palette per spec §10, tuned to rhyme with the Summer
@@ -56,3 +59,81 @@ html, body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── My Journal: the paper notebook ─────────────────────────────────────
+   Ruled paper with punched holes and a pink margin line; handwriting sits
+   exactly on the 28px rule grid. 9-year-old-girl stationery energy. */
+.font-hand { font-family: "Patrick Hand", cursive; }
+.font-hand-display { font-family: "Caveat", cursive; }
+
+.paper-page {
+  position: relative;
+  background-color: #fffdf6;
+  background-image:
+    repeating-linear-gradient(transparent 0px, transparent 27px, #cfe3f7 27px, #cfe3f7 28px),
+    radial-gradient(circle at 18px 14px, #efe4d3 5px, #fbf6ea 5.5px, transparent 7px);
+  background-size: 100% 28px, 36px 56px;
+  background-repeat: repeat, repeat-y;
+  border-radius: 6px 18px 18px 6px;
+  box-shadow:
+    0 1px 0 #f0e8d8, 0 3px 0 -1px #fffdf6, 0 4px 0 #eee4d0,
+    0 6px 0 -2px #fffdf6, 0 7px 0 #e8dcc4,
+    0 16px 30px rgba(46, 42, 54, 0.18);
+}
+.paper-page::before {
+  /* pink margin line */
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 44px;
+  width: 2px;
+  background: rgba(249, 168, 212, 0.7);
+  pointer-events: none;
+}
+.paper-page::after {
+  /* spine shading */
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 36px;
+  background: linear-gradient(90deg, rgba(46, 42, 54, 0.08), transparent);
+  border-radius: 6px 0 0 6px;
+  pointer-events: none;
+}
+
+.paper-ink { color: #3b3350; }
+.paper-lines { line-height: 28px; } /* sit on the rules */
+
+.washi {
+  display: inline-block;
+  padding: 2px 14px;
+  transform: rotate(-2deg);
+  background:
+    repeating-linear-gradient(45deg, rgba(255,255,255,0.35) 0 6px, transparent 6px 12px),
+    rgba(196, 181, 253, 0.75);
+  box-shadow: 0 1px 3px rgba(46, 42, 54, 0.15);
+  clip-path: polygon(2% 0%, 98% 2%, 100% 100%, 0% 96%);
+}
+.washi-pink { background:
+    repeating-linear-gradient(45deg, rgba(255,255,255,0.35) 0 6px, transparent 6px 12px),
+    rgba(249, 168, 212, 0.8); }
+.washi-mint { background:
+    repeating-linear-gradient(45deg, rgba(255,255,255,0.35) 0 6px, transparent 6px 12px),
+    rgba(110, 231, 183, 0.75); }
+
+.polaroid {
+  background: #fff;
+  padding: 8px 8px 22px;
+  box-shadow: 0 4px 12px rgba(46, 42, 54, 0.22);
+}
+.tape {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  width: 72px;
+  height: 22px;
+  transform: translateX(-50%) rotate(-3deg);
+  background: rgba(253, 230, 138, 0.65);
+  box-shadow: 0 1px 2px rgba(46, 42, 54, 0.12);
+}
+
+.book-perspective { perspective: 1800px; }
