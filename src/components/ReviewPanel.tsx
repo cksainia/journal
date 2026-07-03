@@ -12,6 +12,12 @@ type Phase =
   | { kind: 'error' }
   | { kind: 'result'; review: Review; reviewId: string }
 
+const QUESTS = [
+  'Add one more juicy detail!',
+  'Try a stronger verb somewhere.',
+  'Start one sentence a different way.',
+]
+
 /**
  * "Check My Writing" result (spec §4.5): encouragement FIRST, then at most one
  * glow and one grow, then friendly correction cards with agency. Spelling
@@ -167,6 +173,12 @@ export function ReviewPanel({
       {review.corrections.length > 0 && unresolved.length === 0 && (
         <Card className="text-center bg-teal-soft border-teal/30">
           <p className="font-extrabold">All checked — nice editing! 🧹</p>
+          {/* Occasional revision quest (spec §4.5) — a tiny stretch, never homework */}
+          {review.counts.sentences % 3 === 0 && (
+            <p className="text-sm font-bold mt-1">
+              🗺️ Revision quest: {QUESTS[review.counts.words % QUESTS.length]}
+            </p>
+          )}
           {recheck === 'done' && recheckCounts ? (
             <p className="font-bold text-teal mt-1">
               {recheckCounts.spelling === 0

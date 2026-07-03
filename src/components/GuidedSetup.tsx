@@ -20,12 +20,14 @@ function pushGenre(g: Genre) {
 }
 
 /** Local fallback (spec §4.2A): guided writing NEVER depends on AI. */
-function fallbackPrompt(recent: Genre[]): GuidedPrompt {
+function fallbackPrompt(recent: Genre[], bookMode = false): GuidedPrompt {
   const order: Genre[] = ['narrative', 'opinion', 'informative']
   const genre = order.find((g) => !recent.includes(g)) ?? 'narrative'
   const bank = GUIDED_FALLBACK[genre]
   return {
-    prompt: bank.prompts[Math.floor(Math.random() * bank.prompts.length)],
+    prompt: bookMode
+      ? bank.prompts[2] // slot [2] is the book-response variant per bank convention
+      : bank.prompts[Math.floor(Math.random() * bank.prompts.length)],
     genre,
     kidFriendlyName: bank.kidFriendlyName,
     standardsTags: bank.standardsTags,
@@ -39,39 +41,54 @@ function fallbackPrompt(recent: Genre[]): GuidedPrompt {
 export function GuidedSetup({
   dateKey,
   checkin,
+  bookMode = false,
   onReady,
   onBack,
 }: {
   dateKey: string
   checkin: Checkin | null
+  bookMode?: boolean
   onReady: (sectionId: string) => void
   onBack: () => void
 }) {
   const [prompt, setPrompt] = useState<GuidedPrompt | null>(null)
   const [starting, setStarting] = useState(false)
+  const [book, setBook] = useState('')
+  const [bookConfirmed, setBookConfirmed] = useState(!bookMode)
   const requested = useRef(false)
 
-  async function load() {
+  useEffect(() => {
+    if (!bookMode) return
+    import('@/lib/meta').then(({ watchMeta }) => {
+      const stop = watchMeta((m) => {
+        if (m.currentBook) setBook((b) => b || m.currentBook!)
+        stop()
+      })
+    })
+  }, [bookMode])
+
+  async function load(currentBook?: string) {
     setPrompt(null)
     const recent = recentGenres()
     try {
       const p = await getClaudeService().generateGuidedPrompt({
         checkin: (checkin as CheckinData | null) ?? null,
         recentGenres: recent,
+        currentBook: currentBook || undefined,
       })
       setPrompt(p)
     } catch (e) {
       console.warn('guided prompt fell back to local bank:', (e as Error).message)
-      setPrompt(fallbackPrompt(recent))
+      setPrompt(fallbackPrompt(recent, !!currentBook))
     }
   }
 
   useEffect(() => {
-    if (requested.current) return
+    if (requested.current || !bookConfirmed) return
     requested.current = true
-    void load()
+    void load(bookMode ? book : undefined)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [bookConfirmed])
 
   async function start() {
     if (!prompt) return
@@ -90,6 +107,37 @@ export function GuidedSetup({
     } finally {
       setStarting(false)
     }
+  }
+
+  if (!bookConfirmed) {
+    return (
+      <Card className="text-center flex flex-col items-center gap-3">
+        <span className="text-4xl" aria-hidden>📖</span>
+        <p className="font-extrabold text-lg">What book are you reading?</p>
+        <input
+          autoFocus
+          value={book}
+          onChange={(e) => setBook(e.target.value)}
+          placeholder="Book title…"
+          aria-label="Book title"
+          className="w-full max-w-xs min-h-12 px-4 rounded-2xl border-2 border-line bg-paper
+                     focus:border-teal focus:outline-none text-base text-center font-bold"
+        />
+        <div className="flex gap-2">
+          <Button
+            size="md"
+            disabled={!book.trim()}
+            onClick={() => {
+              void import('@/lib/meta').then(({ saveCurrentBook }) => saveCurrentBook(book))
+              setBookConfirmed(true)
+            }}
+          >
+            That's my book! 📚
+          </Button>
+          <Button variant="ghost" size="md" onClick={onBack}>← Back</Button>
+        </div>
+      </Card>
+    )
   }
 
   if (!prompt) {
@@ -128,7 +176,7 @@ export function GuidedSetup({
           </Button>
         </div>
         <div className="flex justify-center gap-2 mt-2">
-          <Button variant="ghost" size="sm" onClick={() => void load()}>
+          <Button variant="ghost" size="sm" onClick={() => void load(bookMode ? book : undefined)}>
             Different idea 🎲
           </Button>
           <Button variant="ghost" size="sm" onClick={onBack}>

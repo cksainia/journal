@@ -35,7 +35,7 @@ export function Today() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [checkingIn, setCheckingIn] = useState(false)
   const [choosing, setChoosing] = useState(false)
-  const [guidedSetup, setGuidedSetup] = useState(false)
+  const [guidedSetup, setGuidedSetup] = useState<false | { bookMode: boolean }>(false)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
@@ -81,10 +81,13 @@ export function Today() {
     }
   }
 
-  async function onPickSpark(type: SectionType, opts?: { title?: string; prompt?: string }) {
+  async function onPickSpark(
+    type: SectionType,
+    opts?: { title?: string; prompt?: string; bookMode?: boolean },
+  ) {
     if (type === 'guided') {
       setChoosing(false)
-      setGuidedSetup(true)
+      setGuidedSetup({ bookMode: !!opts?.bookMode })
       return
     }
     setBusy(true)
@@ -110,6 +113,7 @@ export function Today() {
       <GuidedSetup
         dateKey={dateKey}
         checkin={day?.checkin ?? null}
+        bookMode={guidedSetup.bookMode}
         onReady={(id) => {
           setGuidedSetup(false)
           setEditingId(id)

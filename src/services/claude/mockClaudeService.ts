@@ -127,8 +127,9 @@ export const mockClaudeService: ClaudeService = {
     // Personalize from check-in (spec §4.2A): traveled → journey, read → book, etc.
     const c = input.checkin
     let variant = bank.prompts[0]
-    if (c?.location === 'traveling') variant = bank.prompts[1] ?? variant
-    else if (c?.activities?.includes('read') || input.currentBook) variant = bank.prompts[2] ?? variant
+    if (input.currentBook) variant = bank.prompts[2] ?? variant // book response mode wins
+    else if (c?.location === 'traveling') variant = bank.prompts[1] ?? variant
+    else if (c?.activities?.includes('read')) variant = bank.prompts[2] ?? variant
     else if (c?.moods?.some((m) => ['sad', 'grumpy', 'nervous'].includes(m)))
       variant = bank.gentle ?? variant
     else variant = pick(bank.prompts, (c?.activities?.length ?? 0) + (c?.moods?.length ?? 0))

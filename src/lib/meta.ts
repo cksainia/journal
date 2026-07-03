@@ -31,12 +31,18 @@ export async function saveParentNote(weekStart: string, note: string): Promise<v
   await setDoc(metaRef(), { parentNotes: { [weekStart]: note } }, { merge: true })
 }
 
-export function watchMeta(
-  cb: (meta: {
-    wordShelf?: string[]
-    favoriteSentences?: FavoriteSentence[]
-    parentNotes?: Record<string, string>
-  }) => void,
-) {
-  return onSnapshot(metaRef(), (snap) => cb(snap.exists() ? (snap.data() as never) : {}))
+/** Book response mode (spec §4.2A): remember what she's currently reading. */
+export async function saveCurrentBook(title: string): Promise<void> {
+  await setDoc(metaRef(), { currentBook: title.trim() }, { merge: true })
+}
+
+export interface JournalMeta {
+  wordShelf?: string[]
+  favoriteSentences?: FavoriteSentence[]
+  parentNotes?: Record<string, string>
+  currentBook?: string
+}
+
+export function watchMeta(cb: (meta: JournalMeta) => void) {
+  return onSnapshot(metaRef(), (snap) => cb(snap.exists() ? (snap.data() as JournalMeta) : {}))
 }

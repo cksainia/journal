@@ -10,7 +10,7 @@ export function SparkChooser({
   onPick,
 }: {
   dateKey: string
-  onPick: (type: SectionType, opts?: { title?: string; prompt?: string }) => void
+  onPick: (type: SectionType, opts?: { title?: string; prompt?: string; bookMode?: boolean }) => void
 }) {
   const nudge = nudgeForDate(dateKey)
 
@@ -20,7 +20,7 @@ export function SparkChooser({
     title: string
     blurb: string
     soon?: boolean
-    opts?: { title?: string; prompt?: string }
+    opts?: { title?: string; prompt?: string; bookMode?: boolean }
   }[] = [
     {
       type: 'nudge',
@@ -31,6 +31,7 @@ export function SparkChooser({
     },
     { type: 'free', emoji: '🖊️', title: 'Free Writing', blurb: 'Anything you want — your page!' },
     { type: 'guided', emoji: '✨', title: 'Guided Writing', blurb: 'A prompt made just for your day!' },
+    { type: 'guided', emoji: '📖', title: 'About My Book', blurb: 'Write about what you are reading!', opts: { bookMode: true } },
     { type: 'drawing', emoji: '🎨', title: 'Drawing', blurb: 'Coming soon!', soon: true },
   ]
 
@@ -40,7 +41,7 @@ export function SparkChooser({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {modes.map((m) => (
           <Card
-            key={m.type}
+            key={m.title}
             role={m.soon ? undefined : 'button'}
             tabIndex={m.soon ? -1 : 0}
             aria-disabled={m.soon}
