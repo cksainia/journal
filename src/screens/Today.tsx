@@ -209,6 +209,19 @@ export function Today() {
         </Card>
       )}
 
+      {/* a note from Mom or Dad — the day's little surprise */}
+      {loaded &&
+        (day?.loveNotes ?? []).map((n, i) => (
+          <Card key={`love-${i}`} className="p-4 bg-sunny-soft border-sunny/50">
+            <p className="text-xs font-extrabold uppercase tracking-widest text-ink/60">
+              💌 {n.from === 'dad' ? 'Dad' : 'Mom'} says…
+            </p>
+            <p className="font-hand text-2xl leading-tight mt-1" style={{ color: '#5B3FB8' }}>
+              {n.text}
+            </p>
+          </Card>
+        ))}
+
       {/* Her check-in answers — always visible, always editable */}
       {loaded && day?.checkin && (
         <Card className="p-4">

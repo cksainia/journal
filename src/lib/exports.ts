@@ -60,7 +60,11 @@ export function exportJson(bundles: DayBundle[], includeArchived: boolean) {
 
 /** Printable keepsake "journal book" — opens a print view; Save-as-PDF from there. */
 export function openKeepsake(bundles: DayBundle[], includeArchived: boolean) {
-  const days = bundles.filter((b) => b.sections.some((s) => includeArchived || s.status !== 'archived'))
+  const days = bundles.filter(
+    (b) =>
+      b.sections.some((s) => includeArchived || s.status !== 'archived') ||
+      (b.day.loveNotes?.length ?? 0) > 0,
+  )
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   const pretty = (dk: string) =>
     new Date(dk + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
@@ -78,10 +82,14 @@ export function openKeepsake(bundles: DayBundle[], includeArchived: boolean) {
         })
         .join('')
       const moods = (b.day.checkin?.moods ?? []).join(', ')
+      const loveNotes = (b.day.loveNotes ?? [])
+        .map((n) => `<p class="love">💌 ${n.from === 'dad' ? 'Dad' : 'Mom'} says: ${esc(n.text)}</p>`)
+        .join('')
       return `<article>
         <h2>${pretty(b.day.dateKey)}</h2>
         ${moods ? `<p class="meta">Feeling: ${esc(moods)}</p>` : ''}
         ${sections}
+        ${loveNotes}
       </article>`
     })
     .join('')
@@ -93,6 +101,7 @@ export function openKeepsake(bundles: DayBundle[], includeArchived: boolean) {
       body { font-family: Georgia, serif; color: #2E2A36; max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
       h1 { text-align: center; } h2 { border-bottom: 2px solid #F4634A; padding-bottom: 4px; margin-top: 2.5rem; }
       .meta { color: #7A7484; font-style: italic; } .prompt { color: #8F7BE8; font-style: italic; }
+      .love { background: #FFF3D0; border-radius: 8px; padding: 8px 12px; color: #5B3FB8; }
       .text { font-size: 1.1rem; line-height: 1.7; white-space: pre-wrap; }
       .panels { display: flex; gap: 8px; } .panels img { width: 30%; border: 1px solid #EFE4D3; border-radius: 8px; }
       article { break-inside: avoid; }

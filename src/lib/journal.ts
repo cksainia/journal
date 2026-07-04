@@ -52,6 +52,16 @@ export interface Checkin {
   bonus: { question: string; answer: 'yes' | 'no' | null }
 }
 
+/** A note from Mom or Dad on her journal page — appreciation she can reread.
+ *  Lives on the day doc (NOT a section) so it never counts toward her writing
+ *  stats or the tracker sync. `at` is client ms (serverTimestamp isn't allowed
+ *  inside arrayUnion elements). */
+export interface LoveNote {
+  from: 'dad' | 'mom'
+  text: string
+  at: number
+}
+
 /** A sticker she placed on her journal page (positions in % of the page). */
 export interface Sticker {
   emoji: string
@@ -71,6 +81,7 @@ export interface JournalDay {
   streakCredit: boolean
   summerTrackerSync: SyncStatus | null
   stickers?: Sticker[]
+  loveNotes?: LoveNote[]
   createdAt?: unknown
   updatedAt?: unknown
 }
@@ -133,6 +144,19 @@ export async function saveCheckin(dateKey: string, checkin: Checkin): Promise<vo
 export async function saveStickers(dateKey: string, stickers: Sticker[]): Promise<void> {
   if (isStale()) return // whole-array write from old code could drop newer stickers
   await updateDoc(dayRef(dateKey), { stickers, updatedAt: serverTimestamp() })
+}
+
+/** Append a parent's note to a day (PARENT-ONLY UI; arrayUnion keeps
+ *  concurrent writers merge-safe, so no version gating is needed). */
+export async function addLoveNote(dateKey: string, note: LoveNote): Promise<void> {
+  const { arrayUnion } = await import('firebase/firestore')
+  await ensureDay(dateKey)
+  await updateDoc(dayRef(dateKey), { loveNotes: arrayUnion(note), updatedAt: serverTimestamp() })
+}
+
+export async function removeLoveNote(dateKey: string, note: LoveNote): Promise<void> {
+  const { arrayRemove } = await import('firebase/firestore')
+  await updateDoc(dayRef(dateKey), { loveNotes: arrayRemove(note), updatedAt: serverTimestamp() })
 }
 
 export interface CreateSectionOpts {

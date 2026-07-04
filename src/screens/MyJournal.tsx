@@ -41,10 +41,11 @@ export function MyJournal() {
   // oldest → newest; only days with real content get a page
   const pages = useMemo(
     () =>
-      (bundles ?? []).filter((b) =>
-        b.sections.some(
-          (s) => s.status !== 'archived' && (s.plainText?.trim() || (s.panels?.length ?? 0) > 0),
-        ),
+      (bundles ?? []).filter(
+        (b) =>
+          b.sections.some(
+            (s) => s.status !== 'archived' && (s.plainText?.trim() || (s.panels?.length ?? 0) > 0),
+          ) || (b.day.loveNotes?.length ?? 0) > 0, // a note from Mom/Dad earns the day a page
       ),
     [bundles],
   )

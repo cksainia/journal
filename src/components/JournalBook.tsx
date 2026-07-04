@@ -280,9 +280,11 @@ export function JournalPage({
       </div>
 
       {live.length === 0 ? (
-        <p className="font-hand paper-lines text-2xl mt-4 text-muted">
-          (checked in, but the page stayed empty today 💛)
-        </p>
+        (day.loveNotes?.length ?? 0) === 0 && (
+          <p className="font-hand paper-lines text-2xl mt-4 text-muted">
+            (checked in, but the page stayed empty today 💛)
+          </p>
+        )
       ) : (
         live.map((s, i) => (
           <div key={s.id} className="mt-5 relative">
@@ -326,6 +328,28 @@ export function JournalPage({
           </div>
         ))
       )}
+
+      {/* notes from Mom & Dad — a different pen, taped on like a real note */}
+      {(day.loveNotes ?? []).map((n, i) => (
+        <div
+          key={`love-${i}`}
+          className={`relative bg-sunny-soft border border-sunny/50 rounded-lg shadow-card ${
+            compact ? 'mt-4 p-2 pt-3 max-w-xs' : 'mt-6 p-3 pt-4 max-w-md'
+          }`}
+          style={{ transform: `rotate(${i % 2 ? 1.5 : -1.5}deg)` }}
+        >
+          <span className="tape" />
+          <p className="font-extrabold text-xs uppercase tracking-widest text-ink/60">
+            💌 {n.from === 'dad' ? 'Dad' : 'Mom'} says…
+          </p>
+          <p
+            className={`font-hand ${compact ? 'text-lg' : 'text-2xl'} leading-tight mt-0.5`}
+            style={{ color: '#5B3FB8' }}
+          >
+            {n.text}
+          </p>
+        </div>
+      ))}
 
       {/* footer: counts as a pencil note + page corner */}
       <div className="mt-6 flex items-end justify-between">

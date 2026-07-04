@@ -34,6 +34,8 @@ import {
   type DayBundle,
 } from '@/lib/analytics'
 import { saveParentNote, watchMeta, metaRef, type JournalMeta } from '@/lib/meta'
+import { addLoveNote, dayRef, removeLoveNote, type JournalDay, type LoveNote } from '@/lib/journal'
+import { useDictation } from '@/lib/dictation'
 import { getClaudeService } from '@/services/claude'
 import type { WeeklyInsights } from '@/services/claude/types'
 import { useSession } from '@/stores/session'
@@ -398,6 +400,8 @@ function Dashboard({ email, onSignOut }: { email: string; onSignOut: () => void 
 
       <ParentNotes meta={meta} weekStart={weekStart} />
 
+      <LoveNoteCard />
+
       {/* 4 — raw data / settings */}
       <EntriesManager bundles={bundles} onChanged={() => setReloadKey((k) => k + 1)} />
       <ImportPaperJournal onImported={() => setReloadKey((k) => k + 1)} />
@@ -444,6 +448,133 @@ function ParentNotes({ meta, weekStart }: { meta: JournalMeta; weekStart: string
       <Button size="sm" variant="secondary" className="mt-2" onClick={async () => { await saveParentNote(weekStart, note); setSaved(true) }}>
         {saved ? 'Saved ✓' : 'Save note'}
       </Button>
+    </Card>
+  )
+}
+
+/** A note in HER journal (visible to Aria, unlike the private notes above):
+ *  "Dad says…" / "Mom says…" appreciation taped onto the day's page. Not an
+ *  entry — it lives on the day doc and never touches her writing stats. */
+function LoveNoteCard() {
+  const [date, setDate] = useState(dateKeyFor())
+  const [from, setFrom] = useState<'dad' | 'mom'>(
+    (localStorage.getItem('love-note-from') as 'dad' | 'mom') || 'dad',
+  )
+  const [text, setText] = useState('')
+  const [notes, setNotes] = useState<LoveNote[]>([])
+  const [busy, setBusy] = useState(false)
+  const { supported, listening, start, stop } = useDictation((phrase) =>
+    setText((t) => (t ? t.replace(/\s+$/, '') + ' ' : '') + phrase),
+  )
+
+  useEffect(() => {
+    let stale = false
+    getDoc(dayRef(date)).then((snap) => {
+      if (!stale) setNotes(((snap.data() as JournalDay | undefined)?.loveNotes ?? []) as LoveNote[])
+    })
+    return () => {
+      stale = true
+    }
+  }, [date, busy])
+
+  async function send() {
+    const clean = text.trim()
+    if (!clean) return
+    setBusy(true)
+    try {
+      if (listening) stop()
+      await addLoveNote(date, { from, text: clean, at: Date.now() })
+      setText('')
+    } catch (e) {
+      console.warn('love note failed:', (e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card>
+      <CardTitle className="text-base">A note in her journal 💌</CardTitle>
+      <p className="text-muted text-xs mt-1">
+        Aria sees this on that day's journal page — a little "Dad says" / "Mom says" she can
+        reread anytime. It never counts toward her writing stats.
+      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          aria-label="Which day the note goes on"
+          className="min-h-10 px-2 rounded-xl border-2 border-line font-bold"
+        />
+        {(['dad', 'mom'] as const).map((who) => (
+          <Chip
+            key={who}
+            active={from === who}
+            onClick={() => {
+              setFrom(who)
+              localStorage.setItem('love-note-from', who)
+            }}
+          >
+            {who === 'dad' ? '👨 Dad says…' : '👩 Mom says…'}
+          </Chip>
+        ))}
+      </div>
+      <div className="mt-2 relative">
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={3}
+          placeholder="I loved how you helped your brother today…"
+          aria-label="Note for her journal"
+          className="w-full rounded-2xl border-2 border-line p-3 pr-14 text-sm focus:border-teal focus:outline-none"
+        />
+        {supported && (
+          <button
+            onClick={listening ? stop : start}
+            aria-label={listening ? 'Stop dictation' : 'Dictate the note'}
+            aria-pressed={listening}
+            className={`absolute right-2 top-2 size-10 rounded-full text-lg border-2
+                        focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-lavender
+                        ${listening ? 'bg-coral text-white border-coral animate-pulse' : 'bg-soft border-line'}`}
+          >
+            {listening ? '⏹' : '🎤'}
+          </button>
+        )}
+      </div>
+      {listening && <p className="text-coral text-xs font-bold">Listening… speak your note, then tap ⏹.</p>}
+      <Button size="sm" className="mt-2" disabled={busy || !text.trim()} onClick={() => void send()}>
+        {busy ? 'Sending…' : 'Put it on her page 💌'}
+      </Button>
+
+      {notes.length > 0 && (
+        <div className="mt-3 flex flex-col gap-2">
+          <p className="text-xs font-bold text-muted">On {date}:</p>
+          {notes.map((n, i) => (
+            <div key={i} className="flex items-start gap-2 bg-sunny-soft rounded-xl p-2 text-sm">
+              <span className="flex-1">
+                <b>{n.from === 'dad' ? '👨 Dad' : '👩 Mom'} says:</b> {n.text}
+              </span>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-coral"
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true)
+                  try {
+                    await removeLoveNote(date, n)
+                  } finally {
+                    setBusy(false)
+                  }
+                }}
+              >
+                ✕
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
     </Card>
   )
 }
