@@ -16,6 +16,7 @@ import { Card, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Chip } from '@/components/ui/chip'
 import { SyncStatusCard } from '@/components/SyncStatusCard'
+import { ImportPaperJournal } from '@/components/ImportPaperJournal'
 import { db } from '@/lib/firebase'
 import { FAMILY_ID, CHILD_UID, CHILD_NAME } from '@/lib/constants'
 import { dateKeyFor } from '@/lib/dateKey'
@@ -399,6 +400,7 @@ function Dashboard({ email, onSignOut }: { email: string; onSignOut: () => void 
 
       {/* 4 — raw data / settings */}
       <EntriesManager bundles={bundles} onChanged={() => setReloadKey((k) => k + 1)} />
+      <ImportPaperJournal onImported={() => setReloadKey((k) => k + 1)} />
       <ExportsCard bundles={bundles} />
       <SyncStatusCard />
       <SettingsCard />
@@ -573,6 +575,7 @@ function EntriesManager({ bundles, onChanged }: { bundles: DayBundle[]; onChange
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [moveDate, setMoveDate] = useState('')
 
   const daysWithSections = [...bundles].reverse().filter((b) => b.sections.length > 0)
   const allKeys = daysWithSections.flatMap((b) => b.sections.map((s) => `${b.day.dateKey}|${s.id}`))
@@ -616,6 +619,22 @@ function EntriesManager({ bundles, onChanged }: { bundles: DayBundle[]; onChange
     return { dateKey, sectionId }
   })
 
+  async function moveTo() {
+    if (!selectedItems.length || !moveDate) return
+    setBusy(true)
+    try {
+      const { moveSections } = await import('@/lib/journal')
+      await moveSections(selectedItems, moveDate)
+      setSelected(new Set())
+      setMoveDate('')
+      onChanged()
+    } catch (e) {
+      console.warn('move failed:', (e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <Card>
       <div className="flex items-center justify-between">
@@ -653,6 +672,18 @@ function EntriesManager({ bundles, onChanged }: { bundles: DayBundle[]; onChange
                 <Button size="sm" variant="ghost" className="text-coral" disabled={busy} onClick={() => void act(selectedItems, 'delete')}>
                   {busy ? 'Working…' : 'Delete selected'}
                 </Button>
+                <span className="flex items-center gap-1">
+                  <input
+                    type="date"
+                    value={moveDate}
+                    onChange={(e) => setMoveDate(e.target.value)}
+                    aria-label="Move selected entries to this date"
+                    className="min-h-9 px-2 rounded-xl border-2 border-line text-xs font-bold"
+                  />
+                  <Button size="sm" variant="secondary" disabled={busy || !moveDate} onClick={() => void moveTo()}>
+                    Move here
+                  </Button>
+                </span>
               </>
             )}
           </div>
@@ -683,7 +714,8 @@ function EntriesManager({ bundles, onChanged }: { bundles: DayBundle[]; onChange
                         {s.status === 'draft' && <span className="text-muted"> · draft</span>}
                       </p>
                       <p className="text-muted text-xs truncate">
-                        {s.plainText?.trim() || ((s.panels?.length ?? 0) > 0 ? '(drawing)' : '(empty)')}
+                        {s.plainText?.trim() ||
+                          ((s.panels?.length ?? 0) > 0 ? (s.type === 'photo' ? '(photo)' : '(drawing)') : '(empty)')}
                       </p>
                     </div>
                     {s.status === 'archived' ? (

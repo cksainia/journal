@@ -7,6 +7,7 @@ import { CheckIn, MOODS, LOCATIONS, ACTIVITIES, RATINGS } from '@/components/Che
 import { SparkChooser } from '@/components/SparkChooser'
 import { GuidedSetup } from '@/components/GuidedSetup'
 import { DrawingEditor } from '@/components/DrawingEditor'
+import { PhotoEditor } from '@/components/PhotoEditor'
 import { Art } from '@/components/illustrations'
 import { dateKeyFor } from '@/lib/dateKey'
 import {
@@ -114,6 +115,9 @@ export function Today() {
   }
 
   if (editing) {
+    if (editing.type === 'photo') {
+      return <PhotoEditor dateKey={dateKey} section={editing} onClose={() => setEditingId(null)} />
+    }
     return editing.type === 'drawing' || editing.type === 'comic' ? (
       <DrawingEditor dateKey={dateKey} section={editing} onClose={() => setEditingId(null)} />
     ) : (

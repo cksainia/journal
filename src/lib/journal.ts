@@ -18,7 +18,7 @@ import { isStale } from './version'
 
 export { computeTotals, totalsEqual, type DailyTotals }
 
-export type SectionType = 'guided' | 'free' | 'nudge' | 'drawing' | 'comic'
+export type SectionType = 'guided' | 'free' | 'nudge' | 'drawing' | 'comic' | 'photo'
 export type SectionStatus = 'draft' | 'saved' | 'archived'
 
 export interface JournalSection {
@@ -271,4 +271,38 @@ export async function applySectionActions(
   for (const dateKey of new Set(items.map((i) => i.dateKey))) {
     await retryTrackerSync(dateKey)
   }
+}
+
+/** Move entries to a different day (PARENT ONLY — e.g. paper-journal imports
+ *  landed on the wrong date). Copies the section AND its reviews to the target
+ *  day, deletes the original, then recomputes totals + tracker sync for every
+ *  day that changed. */
+export async function moveSections(
+  items: { dateKey: string; sectionId: string }[],
+  toDateKey: string,
+): Promise<void> {
+  const { deleteDoc, getDocs, collection: coll } = await import('firebase/firestore')
+  const touched = new Set<string>([toDateKey])
+  for (const { dateKey, sectionId } of items) {
+    if (dateKey === toDateKey) continue
+    const srcRef = doc(sectionsRef(dateKey), sectionId)
+    const snap = await getDoc(srcRef)
+    if (!snap.exists()) continue
+    await ensureDay(toDateKey)
+    const destRef = doc(sectionsRef(toDateKey))
+    await setDoc(destRef, { ...snap.data(), id: destRef.id, updatedAt: serverTimestamp() })
+    const reviewsSnap = await getDocs(
+      coll(db, 'journalDays', dayIdFor(dateKey), 'sections', sectionId, 'reviews'),
+    )
+    for (const r of reviewsSnap.docs) {
+      await setDoc(
+        doc(coll(db, 'journalDays', dayIdFor(toDateKey), 'sections', destRef.id, 'reviews')),
+        r.data(),
+      )
+      await deleteDoc(r.ref)
+    }
+    await deleteDoc(srcRef)
+    touched.add(dateKey)
+  }
+  for (const dateKey of touched) await retryTrackerSync(dateKey)
 }

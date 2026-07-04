@@ -126,6 +126,21 @@ export const WeeklyInsightsSchema = z.object({
 })
 export type WeeklyInsights = z.infer<typeof WeeklyInsightsSchema>
 
+/** OCR result for one photographed page of her PAPER journal (parent-only
+ *  import flow). Everything is a *suggestion* the parent reviews and edits
+ *  before anything is written — so the schema is deliberately forgiving. */
+export const ImportedPageSchema = z.object({
+  date: z.string().nullable().catch(null),
+  dayOfWeek: z.string().nullable().catch(null),
+  moods: z.array(z.string()).catch([]),
+  extraFeelings: z.array(z.string()).catch([]),
+  dayRating: z.string().nullable().catch(null),
+  entries: z.array(z.object({ title: z.string(), text: z.string() })).catch([]),
+  pageKind: z.enum(['writing', 'drawing', 'mixed']).catch('writing'),
+  drawingDescription: z.string().nullable().catch(null),
+})
+export type ImportedPage = z.infer<typeof ImportedPageSchema>
+
 // ── Inputs ────────────────────────────────────────────────────────────────
 export interface CheckinData {
   moods: string[]

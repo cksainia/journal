@@ -275,6 +275,26 @@ export const ENTRY_ART: Record<string, React.ReactNode> = {
       <path d="M48.8 49c.4-2.4 1.8-3.4 3.2-3.4s2.8 1 3.2 3.4c-1-.7-2-1-3.2-1s-2.2.3-3.2 1Z" fill={HAIR} />
     </svg>
   ),
+  photo: (
+    <svg viewBox="0 0 64 64" aria-hidden>
+      {/* flash sparkles */}
+      <Sparkle x={10} y={12} s={0.8} />
+      <Sparkle x={54} y={10} s={0.7} color="#F472B6" />
+      {/* friendly camera */}
+      <rect x="8" y="20" width="48" height="32" rx="7" fill="#7C8CF8" />
+      <rect x="8" y="20" width="48" height="9" rx="7" fill="#98A6FA" />
+      <rect x="22" y="14" width="14" height="9" rx="3" fill="#5B6BE0" />
+      <circle cx="32" cy="37" r="11" fill="#FFFBEB" stroke="#3F4B66" strokeWidth="2.4" />
+      <circle cx="32" cy="37" r="6.5" fill="#8ED0CD" />
+      <circle cx="34.5" cy="34.5" r="2" fill="#fff" opacity="0.9" />
+      {/* shutter button + happy face */}
+      <rect x="44" y="15" width="8" height="6" rx="2" fill="#F9A8D4" />
+      <circle cx="15" cy="33" r="2" fill="#FDE68A" />
+      <path d="M46 42.5c1.5 1.6 4 1.6 5.5 0" stroke="#2A3245" strokeWidth="1.6" strokeLinecap="round" fill="none" />
+      <circle cx="45.5" cy="38.5" r="1.3" fill="#2A3245" />
+      <circle cx="52" cy="38.5" r="1.3" fill="#2A3245" />
+    </svg>
+  ),
 }
 
 /** Small wrapper so call sites stay tidy: <Art set="feeling" id="happy" size={32}/> */

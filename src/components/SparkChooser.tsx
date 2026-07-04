@@ -35,6 +35,14 @@ export function SparkChooser({
     { type: 'guided', emoji: '📖', title: 'About My Book', blurb: 'Write about what you are reading!', opts: { bookMode: true } },
     { type: 'drawing', emoji: '🎨', title: 'Drawing', blurb: 'Draw your day — add a caption!', opts: { title: 'My drawing' } },
     { type: 'comic', emoji: '🗯️', title: 'Comic', blurb: 'Tell a story in 1–3 panels!', opts: { title: 'My comic' } },
+    { type: 'photo', emoji: '📸', title: 'Photo', blurb: 'Snap your art, crafts & creations!', opts: { title: 'My photo' } },
+  ]
+
+  // Reflection questions from her paper journal — quick, cozy, one-tap starts.
+  const reflections = [
+    { emoji: '🌟', prompt: 'Three good things today…' },
+    { emoji: '💪', prompt: 'Today I was proud of…' },
+    { emoji: '💛', prompt: 'Something that I like about me…' },
   ]
 
   return (
@@ -70,6 +78,31 @@ export function SparkChooser({
             )}
             <p className="font-extrabold mt-1">{m.title}</p>
             <p className="text-muted text-sm mt-0.5 line-clamp-3">{m.blurb}</p>
+          </Card>
+        ))}
+      </div>
+
+      <p className="font-extrabold text-center mt-2">…or a quick reflection 💭</p>
+      <div className="flex flex-col gap-2">
+        {reflections.map((r) => (
+          <Card
+            key={r.prompt}
+            role="button"
+            tabIndex={0}
+            onClick={() => onPick('free', { title: r.prompt, prompt: r.prompt })}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onPick('free', { title: r.prompt, prompt: r.prompt })
+              }
+            }}
+            className="p-3 cursor-pointer hover:scale-[1.01] active:scale-95 transition-transform
+                       focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-lavender"
+          >
+            <p className="font-extrabold">
+              <span aria-hidden>{r.emoji} </span>
+              {r.prompt}
+            </p>
           </Card>
         ))}
       </div>

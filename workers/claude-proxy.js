@@ -80,6 +80,41 @@ const ACTIONS = {
       `The child wrote: "${String(p.plainText).slice(0, 1000)}". Return ONE short encouraging follow-up ` +
       `question to keep her going (not a new assignment). Schema: {"question":str}`,
   },
+  // PARENT-ONLY import path: OCR a photographed page of Aria's PAPER journal
+  // into structured data the app can file under the right day. Vision request —
+  // the payload carries the page image as base64.
+  importJournalPage: {
+    maxTokens: 1600,
+    content: (p) => [
+      {
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: p.mediaType || 'image/jpeg',
+          data: String(p.imageBase64 || ''),
+        },
+      },
+      {
+        type: 'text',
+        text:
+          `This is a photo of one page from Aria's PAPER journal, being imported into her digital journal. ` +
+          `Read her handwriting carefully (the photo may be rotated — read it in whatever orientation the text runs). ` +
+          `Transcribe her writing VERBATIM — keep her exact words, spelling, and punctuation; never correct or embellish. ` +
+          `Ignore the notebook's printed decorations, printed quotes, and page numbers — extract only what SHE wrote or chose.\n` +
+          `- date: full date if she wrote one (YYYY-MM-DD), else null. dayOfWeek: if she wrote one (e.g. "Friday"), else null.\n` +
+          `- moods: feelings she circled/marked/wrote, mapped onto: happy, excited, calm, proud, tired, sad, grumpy, nervous. ` +
+          `Unmappable feelings (e.g. "awesome") go in extraFeelings verbatim.\n` +
+          `- dayRating: overall day rating if clearly indicated, mapped onto: awesome, good, okay, meh, tough — else null.\n` +
+          `- entries: one item per prompt/section she answered, title = the printed prompt she was answering ` +
+          `(e.g. "Three good things today…"), text = her verbatim answer(s), joined with newlines for lists. ` +
+          `Skip prompts she left blank.\n` +
+          `- pageKind: "writing", "drawing" (mostly a picture), or "mixed". drawingDescription: if there is a drawing, ` +
+          `one short factual sentence about it (include any labels she wrote), else null.\n` +
+          `Schema: {"date":str|null,"dayOfWeek":str|null,"moods":[str],"extraFeelings":[str],"dayRating":str|null,` +
+          `"entries":[{"title":str,"text":str}],"pageKind":"writing|drawing|mixed","drawingDescription":str|null}`,
+      },
+    ],
+  },
 }
 
 export default {
@@ -110,7 +145,13 @@ export default {
           model: env.MODEL_ID || DEFAULT_MODEL,
           max_tokens: action.maxTokens,
           system: COACH_SYSTEM,
-          messages: [{ role: 'user', content: action.user(body.payload ?? {}) }],
+          messages: [
+            {
+              role: 'user',
+              // text-only actions build a string; vision actions build content blocks
+              content: (action.content ?? action.user)(body.payload ?? {}),
+            },
+          ],
         }),
       })
       if (!r.ok) return json({ error: `anthropic ${r.status}` }, 502, cors)

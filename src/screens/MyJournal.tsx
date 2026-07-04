@@ -15,6 +15,7 @@ const MODES = [
   { id: 'nudge', emoji: '💭', label: 'Nudge' },
   { id: 'drawing', emoji: '🎨', label: 'Drawing' },
   { id: 'comic', emoji: '🗯️', label: 'Comic' },
+  { id: 'photo', emoji: '📸', label: 'Photo' },
 ] as const
 
 /**

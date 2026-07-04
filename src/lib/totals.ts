@@ -26,7 +26,7 @@ export function computeTotals(sections: SectionLike[]): DailyTotals {
     sentences: live.reduce((n, s) => n + (s.sentenceCount || 0), 0),
     sections: live.length,
     reviewedSections: live.filter((s) => (s.reviewCount || 0) > 0).length,
-    drawings: live.filter((s) => s.type === 'drawing' || s.type === 'comic').length,
+    drawings: live.filter((s) => s.type === 'drawing' || s.type === 'comic' || s.type === 'photo').length,
   }
 }
 

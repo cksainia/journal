@@ -315,7 +315,8 @@ export function JournalPage({
               </div>
             )}
 
-            {s.plainText?.trim() && (
+            {/* panel captions already render under each polaroid — plainText is those same captions */}
+            {(s.panels?.length ?? 0) === 0 && s.plainText?.trim() && (
               <p
                 className={`font-hand paper-lines whitespace-pre-wrap mt-1 ${compact ? 'text-xl line-clamp-4' : 'text-2xl'}`}
               >
