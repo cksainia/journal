@@ -1,4 +1,4 @@
-import { dateKeyFor } from './dateKey'
+import { formatDateKey } from './dateKey'
 
 /**
  * Month-grid helper for My Journal: weeks (Sun–Sat) of dateKeys, padded with
@@ -11,7 +11,7 @@ export function monthGrid(year: number, month0: number): (string | null)[][] {
   let week: (string | null)[] = Array<string | null>(first.getDay()).fill(null)
 
   for (let d = 1; d <= daysInMonth; d++) {
-    week.push(dateKeyFor(new Date(year, month0, d)))
+    week.push(formatDateKey(new Date(year, month0, d)))
     if (week.length === 7) {
       weeks.push(week)
       week = []

@@ -52,6 +52,15 @@ export interface Checkin {
   bonus: { question: string; answer: 'yes' | 'no' | null }
 }
 
+/** One drawing/comic/photo panel. `size` is the display size on the journal
+ *  page (photos only; drawings keep their fixed polaroid width). */
+export type PhotoSize = 'sm' | 'md' | 'lg'
+export interface Panel {
+  image: string
+  caption: string
+  size?: PhotoSize
+}
+
 /** A note from Mom or Dad on her journal page — appreciation she can reread.
  *  Lives on the day doc (NOT a section) so it never counts toward her writing
  *  stats or the tracker sync. `at` is client ms (serverTimestamp isn't allowed
@@ -295,6 +304,47 @@ export async function applySectionActions(
   for (const dateKey of new Set(items.map((i) => i.dateKey))) {
     await retryTrackerSync(dateKey)
   }
+}
+
+const escHtml = (s: string) =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+/** Parent cleanup edit (PARENT-ONLY UI): fix a cut-off entry, add a story
+ *  title, or tidy photo/drawing captions. Text sections get their HTML rebuilt
+ *  from plain paragraphs; panel sections recompute their caption text. Counts
+ *  and the tracker sync follow, same as any other content change. */
+export async function parentEditSection(
+  dateKey: string,
+  sectionId: string,
+  patch: { title: string; plainText?: string; panels?: Panel[] },
+): Promise<void> {
+  const updates: Record<string, unknown> = {
+    title: patch.title.trim(),
+    updatedAt: serverTimestamp(),
+  }
+  const setText = (plain: string, html: string) => {
+    updates.plainText = plain
+    updates.text = html
+    updates.wordCount = countWords(plain)
+    updates.sentenceCount = countSentences(plain)
+  }
+  if (patch.panels) {
+    const panels = patch.panels.map((p) => ({ ...p, caption: p.caption.trim() }))
+    updates.panels = panels
+    const joined = panels.map((p) => p.caption).filter(Boolean).join(' ')
+    setText(joined, joined)
+  } else if (patch.plainText !== undefined) {
+    const plain = patch.plainText.trim()
+    const html = plain
+      .split(/\n+/)
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((l) => `<p>${escHtml(l)}</p>`)
+      .join('')
+    setText(plain, html)
+  }
+  await updateDoc(doc(sectionsRef(dateKey), sectionId), updates)
+  await retryTrackerSync(dateKey)
 }
 
 /** Move entries to a different day (PARENT ONLY — e.g. paper-journal imports

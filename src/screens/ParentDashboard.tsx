@@ -34,8 +34,9 @@ import {
   type DayBundle,
 } from '@/lib/analytics'
 import { saveParentNote, watchMeta, metaRef, type JournalMeta } from '@/lib/meta'
-import { addLoveNote, dayRef, removeLoveNote, type JournalDay, type LoveNote } from '@/lib/journal'
+import { addLoveNote, dayRef, parentEditSection, removeLoveNote, type JournalDay, type LoveNote } from '@/lib/journal'
 import { useDictation } from '@/lib/dictation'
+import { PhotoEditor } from '@/components/PhotoEditor'
 import { getClaudeService } from '@/services/claude'
 import type { WeeklyInsights } from '@/services/claude/types'
 import { useSession } from '@/stores/session'
@@ -452,6 +453,92 @@ function ParentNotes({ meta, weekStart }: { meta: JournalMeta; weekStart: string
   )
 }
 
+/** Parent cleanup editor: fix a cut-off entry, give a story its title, or
+ *  tidy drawing captions. Photo sections open the full PhotoEditor instead
+ *  (captions + size + crop), so this handles text and drawing/comic types. */
+function EntryEditForm({
+  dateKey,
+  section,
+  onDone,
+}: {
+  dateKey: string
+  section: DayBundle['sections'][number]
+  onDone: (changed: boolean) => void
+}) {
+  const panels = section.panels ?? []
+  const [title, setTitle] = useState(section.title)
+  const [text, setText] = useState(section.plainText)
+  const [captions, setCaptions] = useState(panels.map((p) => p.caption))
+  const [busy, setBusy] = useState(false)
+
+  async function save() {
+    setBusy(true)
+    try {
+      await parentEditSection(
+        dateKey,
+        section.id,
+        panels.length
+          ? { title, panels: panels.map((p, i) => ({ ...p, caption: captions[i] ?? '' })) }
+          : { title, plainText: text },
+      )
+      onDone(true)
+    } catch (e) {
+      console.warn('entry edit failed:', (e as Error).message)
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 text-sm">
+      <p className="font-bold">
+        Editing {section.type} entry · {dateKey}
+      </p>
+      <input
+        type="text"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder={section.type === 'free' ? 'Story title (shows on her journal page)' : 'Title'}
+        aria-label="Entry title"
+        className="min-h-10 px-3 rounded-xl border-2 border-line font-bold"
+      />
+      {panels.length ? (
+        panels.map((p, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <img src={p.image} alt="" className="w-14 rounded border border-line" />
+            <input
+              type="text"
+              value={captions[i] ?? ''}
+              onChange={(e) => setCaptions((c) => c.map((v, j) => (j === i ? e.target.value : v)))}
+              placeholder="Caption (empty removes it)"
+              aria-label={`Caption ${i + 1}`}
+              className="flex-1 min-h-10 px-3 rounded-xl border-2 border-line"
+            />
+          </div>
+        ))
+      ) : (
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={6}
+          aria-label="Entry text"
+          className="w-full rounded-2xl border-2 border-line p-3 focus:border-teal focus:outline-none"
+        />
+      )}
+      <p className="text-muted text-xs">
+        Her words, your cleanup — counts and Summer Tracker sync update automatically.
+      </p>
+      <div className="flex gap-2">
+        <Button size="sm" disabled={busy} onClick={() => void save()}>
+          {busy ? 'Saving…' : 'Save changes'}
+        </Button>
+        <Button size="sm" variant="secondary" disabled={busy} onClick={() => onDone(false)}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 /** A note in HER journal (visible to Aria, unlike the private notes above):
  *  "Dad says…" / "Mom says…" appreciation taped onto the day's page. Not an
  *  entry — it lives on the day doc and never touches her writing stats. */
@@ -707,6 +794,16 @@ function EntriesManager({ bundles, onChanged }: { bundles: DayBundle[]; onChange
   const [busy, setBusy] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [moveDate, setMoveDate] = useState('')
+  const [editing, setEditing] = useState<{ dateKey: string; section: DayBundle['sections'][number] } | null>(null)
+
+  async function closeEditor(changed: boolean) {
+    if (changed && editing) {
+      const { retryTrackerSync } = await import('@/lib/journal')
+      await retryTrackerSync(editing.dateKey).catch(() => {})
+      onChanged()
+    }
+    setEditing(null)
+  }
 
   const daysWithSections = [...bundles].reverse().filter((b) => b.sections.length > 0)
   const allKeys = daysWithSections.flatMap((b) => b.sections.map((s) => `${b.day.dateKey}|${s.id}`))
@@ -778,7 +875,25 @@ function EntriesManager({ bundles, onChanged }: { bundles: DayBundle[]; onChange
         Archive hides an entry everywhere (recoverable); delete is forever. Totals and Summer
         Tracker sync update automatically. Aria can never delete — only you can.
       </p>
-      {open && (
+      {open && editing && (
+        <div className="mt-3">
+          {editing.section.type === 'photo' ? (
+            // full photo tools for ANY date — captions, size, crop, add/remove
+            <PhotoEditor
+              dateKey={editing.dateKey}
+              section={editing.section}
+              onClose={() => void closeEditor(true)}
+            />
+          ) : (
+            <EntryEditForm
+              dateKey={editing.dateKey}
+              section={editing.section}
+              onDone={(changed) => void closeEditor(changed)}
+            />
+          )}
+        </div>
+      )}
+      {open && !editing && (
         <>
           {/* batch toolbar */}
           <div className="flex flex-wrap items-center gap-2 mt-3 sticky top-0 bg-paper z-10 py-1">
@@ -849,6 +964,10 @@ function EntriesManager({ bundles, onChanged }: { bundles: DayBundle[]; onChange
                           ((s.panels?.length ?? 0) > 0 ? (s.type === 'photo' ? '(photo)' : '(drawing)') : '(empty)')}
                       </p>
                     </div>
+                    <Button size="sm" variant="secondary" disabled={busy}
+                      onClick={() => setEditing({ dateKey: b.day.dateKey, section: s })}>
+                      Edit
+                    </Button>
                     {s.status === 'archived' ? (
                       <Button size="sm" variant="secondary" disabled={busy}
                         onClick={() => void act([{ dateKey: b.day.dateKey, sectionId: s.id }], 'restore')}>

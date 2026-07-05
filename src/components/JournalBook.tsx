@@ -176,6 +176,9 @@ export function JournalBook({
   )
 }
 
+/** Photo display width on the page by her chosen size (drawings stay 130). */
+const PHOTO_WIDTHS = { sm: 100, md: 160, lg: 250 } as const
+
 export function JournalPage({
   bundle,
   pageNo,
@@ -197,6 +200,7 @@ export function JournalPage({
 }) {
   const { day, sections } = bundle
   const pageRef = useRef<HTMLDivElement>(null)
+  const [zoom, setZoom] = useState<{ src: string; alt: string } | null>(null)
   const live = sections.filter(
     (s) => s.status !== 'archived' && (s.plainText?.trim() || (s.panels?.length ?? 0) > 0),
   )
@@ -295,25 +299,36 @@ export function JournalPage({
             )}
             {!s.prompt && s.type === 'free' && (
               <span className={`${washiColors[i % washiColors.length]} font-hand text-base text-ink/80`}>
-                🖊️ dear journal…
+                {s.title.trim() ? `📖 ${s.title}` : '🖊️ dear journal…'}
               </span>
             )}
 
             {(s.panels?.length ?? 0) > 0 && (
-              <div className="flex gap-4 mt-4 mb-1 flex-wrap">
-                {s.panels!.map((p, j) => (
-                  <div
-                    key={j}
-                    className="polaroid relative"
-                    style={{ transform: `rotate(${j % 2 ? 2.5 : -2}deg)`, width: compact ? 90 : 130 }}
-                  >
-                    <span className="tape" />
-                    <img src={p.image} alt={p.caption || `Drawing ${j + 1}`} className="w-full" />
-                    {p.caption && (
-                      <p className="font-hand text-sm text-center mt-1 text-ink/80">{p.caption}</p>
-                    )}
-                  </div>
-                ))}
+              <div className="flex gap-4 mt-4 mb-1 flex-wrap items-start">
+                {s.panels!.map((p, j) => {
+                  const base = s.type === 'photo' ? PHOTO_WIDTHS[p.size ?? 'md'] : 130
+                  return (
+                    <div
+                      key={j}
+                      className="polaroid relative"
+                      style={{ transform: `rotate(${j % 2 ? 2.5 : -2}deg)`, width: compact ? base * 0.7 : base }}
+                    >
+                      <span className="tape" />
+                      <img
+                        src={p.image}
+                        alt={p.caption || (s.type === 'photo' ? `Photo ${j + 1}` : `Drawing ${j + 1}`)}
+                        className="w-full cursor-zoom-in"
+                        onClick={(e) => {
+                          e.stopPropagation() // don't drop a sticker under the tap
+                          setZoom({ src: p.image, alt: p.caption || 'photo' })
+                        }}
+                      />
+                      {p.caption && (
+                        <p className="font-hand text-sm text-center mt-1 text-ink/80">{p.caption}</p>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )}
 
@@ -359,6 +374,39 @@ export function JournalPage({
         </p>
         {pageNo !== undefined && <p className="font-hand text-base text-muted">~ {pageNo} ~</p>}
       </div>
+
+      {/* tap a photo → full-screen viewer; tap anywhere (or Esc) to close */}
+      {zoom && (
+        <div
+          className="fixed inset-0 z-50 bg-ink/90 flex items-center justify-center p-4 cursor-zoom-out"
+          role="dialog"
+          aria-label="Photo viewer — tap to close"
+          onClick={(e) => {
+            e.stopPropagation()
+            setZoom(null)
+          }}
+          onKeyDown={(e) => e.key === 'Escape' && setZoom(null)}
+          tabIndex={-1}
+          ref={(el) => el?.focus()}
+        >
+          <img
+            src={zoom.src}
+            alt={zoom.alt}
+            className="max-w-full max-h-full rounded-xl shadow-card bg-white p-2"
+          />
+          <button
+            aria-label="Close photo"
+            className="absolute top-4 right-4 size-12 rounded-full bg-white/90 text-2xl font-extrabold
+                       focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-lavender"
+            onClick={(e) => {
+              e.stopPropagation()
+              setZoom(null)
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </div>
   )
 }

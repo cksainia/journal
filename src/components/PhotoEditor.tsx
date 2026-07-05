@@ -2,18 +2,19 @@ import { useRef, useState } from 'react'
 import { doc, serverTimestamp, updateDoc } from 'firebase/firestore'
 import { Button } from '@/components/ui/button'
 import { Chip } from '@/components/ui/chip'
-import { sectionsRef, clientId, type JournalSection } from '@/lib/journal'
+import { sectionsRef, clientId, type JournalSection, type Panel, type PhotoSize } from '@/lib/journal'
 import { fileToDataUrl, downscaleImage } from '@/lib/images'
 import { countWords, countSentences } from '@/lib/counting'
 import { celebrate } from '@/lib/confetti'
+import { CropTool } from '@/components/CropTool'
 
 const CAPTION_STARTERS = ['I made this…', 'The best part is…', 'It took me…']
 const MAX_PHOTOS = 3
-
-interface Panel {
-  image: string
-  caption: string
-}
+const SIZES: { id: PhotoSize; label: string }[] = [
+  { id: 'sm', label: 'Small' },
+  { id: 'md', label: 'Medium' },
+  { id: 'lg', label: 'Big' },
+]
 
 /**
  * Photo mode: snap her art, crafts, and creations with the iPad camera (or
@@ -33,6 +34,7 @@ export function PhotoEditor({
   const [photos, setPhotos] = useState<Panel[]>(section.panels ?? [])
   const [adding, setAdding] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [cropIdx, setCropIdx] = useState<number | null>(null)
   const cameraRef = useRef<HTMLInputElement>(null)
   const libraryRef = useRef<HTMLInputElement>(null)
 
@@ -127,12 +129,38 @@ export function PhotoEditor({
 
       {photos.map((p, i) => (
         <div key={i} className="flex flex-col gap-2">
-          <div className="polaroid relative mx-auto" style={{ width: 260 }}>
-            <span className="tape" />
-            <img src={p.image} alt={p.caption || `Photo ${i + 1}`} className="w-full" />
-            {p.caption.trim() && (
-              <p className="font-hand text-lg text-center mt-1 text-ink/80">{p.caption}</p>
-            )}
+          {cropIdx === i ? (
+            <CropTool
+              src={p.image}
+              onCancel={() => setCropIdx(null)}
+              onDone={(cropped) => {
+                setPhotos((ps) => ps.map((v, j) => (j === i ? { ...v, image: cropped } : v)))
+                setCropIdx(null)
+              }}
+            />
+          ) : (
+            <div className="polaroid relative mx-auto" style={{ width: 260 }}>
+              <span className="tape" />
+              <img src={p.image} alt={p.caption || `Photo ${i + 1}`} className="w-full" />
+              {p.caption.trim() && (
+                <p className="font-hand text-lg text-center mt-1 text-ink/80">{p.caption}</p>
+              )}
+            </div>
+          )}
+          <div className="flex flex-wrap gap-2 justify-center items-center">
+            <span className="text-xs font-bold text-muted">On the page:</span>
+            {SIZES.map((s) => (
+              <Chip
+                key={s.id}
+                active={(p.size ?? 'md') === s.id}
+                onClick={() =>
+                  setPhotos((ps) => ps.map((v, j) => (j === i ? { ...v, size: s.id } : v)))
+                }
+              >
+                {s.label}
+              </Chip>
+            ))}
+            <Chip onClick={() => setCropIdx(cropIdx === i ? null : i)}>✂️ Crop</Chip>
           </div>
           <input
             type="text"

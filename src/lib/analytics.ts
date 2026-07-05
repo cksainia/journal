@@ -1,6 +1,6 @@
 import { collection, getDocs, orderBy, query, where } from 'firebase/firestore'
 import { db } from './firebase'
-import { dayIdFor, type JournalDay, type JournalSection } from './journal'
+import { dayIdFor, type JournalDay, type JournalSection, type Panel } from './journal'
 import type { StoredReview } from './reviews'
 import { dateKeyFor } from './dateKey'
 
@@ -13,7 +13,7 @@ import { dateKeyFor } from './dateKey'
 
 export interface DayBundle {
   day: JournalDay & { reviewsUsed?: number }
-  sections: (JournalSection & { panels?: { image: string; caption: string }[] })[]
+  sections: (JournalSection & { panels?: Panel[] })[]
   reviews: StoredReview[]
 }
 

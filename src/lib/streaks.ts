@@ -1,4 +1,4 @@
-import { dateKeyFor } from './dateKey'
+import { formatDateKey } from './dateKey'
 
 /**
  * Streak math (spec §6.1). Pure and testable. A "writing day" is a day doc
@@ -15,7 +15,7 @@ export interface StreakResult {
 function prevKey(dateKey: string): string {
   const d = new Date(dateKey + 'T12:00:00')
   d.setDate(d.getDate() - 1)
-  return dateKeyFor(d)
+  return formatDateKey(d) // pure calendar step — no rollover shift
 }
 
 export function computeStreaks(
