@@ -27,7 +27,7 @@ const COACH_SYSTEM =
 
 const ACTIONS = {
   reviewEntry: {
-    maxTokens: 1500,
+    maxTokens: 2500,
     user: (p) =>
       `Review this ${p.mode} journal entry by a grade-${p.gradeLevel} writer. ` +
       `Limit to the most important 3-5 corrections — don't overwhelm. ` +
@@ -144,6 +144,11 @@ export default {
         body: JSON.stringify({
           model: env.MODEL_ID || DEFAULT_MODEL,
           max_tokens: action.maxTokens,
+          // These are JSON-only calls: extended thinking must stay OFF. When the
+          // model defaulted to thinking (2026-07-05) it burned ~1496 of review's
+          // 1500 tokens on the thinking block and truncated the JSON — every
+          // review failed ("the writing checker is napping").
+          thinking: { type: 'disabled' },
           system: COACH_SYSTEM,
           messages: [
             {
