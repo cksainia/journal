@@ -5,6 +5,8 @@
 @import "@fontsource-variable/baloo-2";
 @import "@fontsource/caveat";
 @import "@fontsource/caveat/700.css";
+@import "@fontsource/sacramento"; /* Dad's love-note pen */
+@import "@fontsource/dancing-script/600.css"; /* Mom's love-note pen */
 
 /* ── Design tokens ─────────────────────────────────────────────
    Warm, peppy palette per spec §10, tuned to rhyme with the Summer
@@ -71,6 +73,10 @@ html, body {
    exactly on the 28px rule grid. 9-year-old-girl stationery energy. */
 .font-hand { font-family: "Caveat", cursive; }
 .font-hand-display { font-family: "Caveat", cursive; font-weight: 700; }
+/* Each parent writes love notes in their own pen (Sacramento runs small —
+   size it up wherever it's used). */
+.font-dad { font-family: "Sacramento", cursive; }
+.font-mom { font-family: "Dancing Script", cursive; font-weight: 600; }
 
 .paper-page {
   position: relative;

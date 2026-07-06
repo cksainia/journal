@@ -9,6 +9,7 @@ import { GuidedSetup } from '@/components/GuidedSetup'
 import { DrawingEditor } from '@/components/DrawingEditor'
 import { PhotoEditor } from '@/components/PhotoEditor'
 import { Art } from '@/components/illustrations'
+import { LOVE_NOTE_STYLES } from '@/components/JournalBook'
 import { dateKeyFor } from '@/lib/dateKey'
 import {
   computeTotals,
@@ -211,16 +212,19 @@ export function Today() {
 
       {/* a note from Mom or Dad — the day's little surprise */}
       {loaded &&
-        (day?.loveNotes ?? []).map((n, i) => (
-          <Card key={`love-${i}`} className="p-4 bg-sunny-soft border-sunny/50">
-            <p className="text-xs font-extrabold uppercase tracking-widest text-ink/60">
-              💌 {n.from === 'dad' ? 'Dad' : 'Mom'} says…
-            </p>
-            <p className="font-hand text-2xl leading-tight mt-1" style={{ color: '#5B3FB8' }}>
-              {n.text}
-            </p>
-          </Card>
-        ))}
+        (day?.loveNotes ?? []).map((n, i) => {
+          const s = LOVE_NOTE_STYLES[n.from] ?? LOVE_NOTE_STYLES.dad
+          return (
+            <Card key={`love-${i}`} className="p-4" style={{ background: s.bg, borderColor: s.border }}>
+              <p className="text-xs font-extrabold uppercase tracking-widest text-ink/60">
+                💌 {n.from === 'dad' ? 'Dad' : 'Mom'} says…
+              </p>
+              <p className={`${s.font} ${s.size} leading-snug mt-1`} style={{ color: s.ink }}>
+                {n.text}
+              </p>
+            </Card>
+          )
+        })}
 
       {/* Her check-in answers — always visible, always editable */}
       {loaded && day?.checkin && (

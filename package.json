@@ -16,6 +16,8 @@
   "dependencies": {
     "@fontsource-variable/baloo-2": "^5.2.7",
     "@fontsource/caveat": "^5.2.8",
+    "@fontsource/dancing-script": "^5.2.8",
+    "@fontsource/sacramento": "^5.2.8",
     "@tiptap/pm": "^3.27.1",
     "@tiptap/react": "^3.27.1",
     "@tiptap/starter-kit": "^3.27.1",

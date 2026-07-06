@@ -83,7 +83,7 @@ export function openKeepsake(bundles: DayBundle[], includeArchived: boolean) {
         .join('')
       const moods = (b.day.checkin?.moods ?? []).join(', ')
       const loveNotes = (b.day.loveNotes ?? [])
-        .map((n) => `<p class="love">💌 ${n.from === 'dad' ? 'Dad' : 'Mom'} says: ${esc(n.text)}</p>`)
+        .map((n) => `<p class="love love-${n.from === 'mom' ? 'mom' : 'dad'}">💌 ${n.from === 'dad' ? 'Dad' : 'Mom'} says: ${esc(n.text)}</p>`)
         .join('')
       return `<article>
         <h2>${pretty(b.day.dateKey)}</h2>
@@ -97,11 +97,15 @@ export function openKeepsake(bundles: DayBundle[], includeArchived: boolean) {
   const w = window.open('', '_blank')
   if (!w) return
   w.document.write(`<!doctype html><html><head><title>${CHILD_NAME}'s Journal — Keepsake</title>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sacramento&family=Dancing+Script:wght@600&display=swap" rel="stylesheet">
     <style>
       body { font-family: Georgia, serif; color: #2E2A36; max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
       h1 { text-align: center; } h2 { border-bottom: 2px solid #F4634A; padding-bottom: 4px; margin-top: 2.5rem; }
       .meta { color: #7A7484; font-style: italic; } .prompt { color: #8F7BE8; font-style: italic; }
-      .love { background: #FFF3D0; border-radius: 8px; padding: 8px 12px; color: #5B3FB8; }
+      .love { border-radius: 8px; padding: 8px 12px; }
+      .love-dad { background: #E3F2FD; color: #1D5FA8; font-family: "Sacramento", cursive; font-size: 1.5rem; }
+      .love-mom { background: #FDE7F1; color: #C2337E; font-family: "Dancing Script", cursive; font-size: 1.25rem; }
       .text { font-size: 1.1rem; line-height: 1.7; white-space: pre-wrap; }
       .panels { display: flex; gap: 8px; } .panels img { width: 30%; border: 1px solid #EFE4D3; border-radius: 8px; }
       article { break-inside: avoid; }

@@ -179,6 +179,13 @@ export function JournalBook({
 /** Photo display width on the page by her chosen size (drawings stay 130). */
 const PHOTO_WIDTHS = { sm: 100, md: 160, lg: 250 } as const
 
+/** Love-note look per parent: Dad writes Sacramento on a light-blue sticky,
+ *  Mom writes Dancing Script on a pink one. (Sacramento runs small → sized up.) */
+export const LOVE_NOTE_STYLES = {
+  dad: { bg: '#E3F2FD', border: '#A9D3F0', ink: '#1D5FA8', font: 'font-dad', size: 'text-3xl', compactSize: 'text-2xl' },
+  mom: { bg: '#FDE7F1', border: '#F2BBD3', ink: '#C2337E', font: 'font-mom', size: 'text-2xl', compactSize: 'text-xl' },
+} as const
+
 export function JournalPage({
   bundle,
   pageNo,
@@ -344,27 +351,30 @@ export function JournalPage({
         ))
       )}
 
-      {/* notes from Mom & Dad — a different pen, taped on like a real note */}
-      {(day.loveNotes ?? []).map((n, i) => (
-        <div
-          key={`love-${i}`}
-          className={`relative bg-sunny-soft border border-sunny/50 rounded-lg shadow-card ${
-            compact ? 'mt-4 p-2 pt-3 max-w-xs' : 'mt-6 p-3 pt-4 max-w-md'
-          }`}
-          style={{ transform: `rotate(${i % 2 ? 1.5 : -1.5}deg)` }}
-        >
-          <span className="tape" />
-          <p className="font-extrabold text-xs uppercase tracking-widest text-ink/60">
-            💌 {n.from === 'dad' ? 'Dad' : 'Mom'} says…
-          </p>
-          <p
-            className={`font-hand ${compact ? 'text-lg' : 'text-2xl'} leading-tight mt-0.5`}
-            style={{ color: '#5B3FB8' }}
+      {/* notes from Mom & Dad — each parent gets their own pen and sticky color */}
+      {(day.loveNotes ?? []).map((n, i) => {
+        const s = LOVE_NOTE_STYLES[n.from] ?? LOVE_NOTE_STYLES.dad
+        return (
+          <div
+            key={`love-${i}`}
+            className={`relative border rounded-lg shadow-card ${
+              compact ? 'mt-4 p-2 pt-3 max-w-xs' : 'mt-6 p-3 pt-4 max-w-md'
+            }`}
+            style={{ transform: `rotate(${i % 2 ? 1.5 : -1.5}deg)`, background: s.bg, borderColor: s.border }}
           >
-            {n.text}
-          </p>
-        </div>
-      ))}
+            <span className="tape" />
+            <p className="font-extrabold text-xs uppercase tracking-widest text-ink/60">
+              💌 {n.from === 'dad' ? 'Dad' : 'Mom'} says…
+            </p>
+            <p
+              className={`${s.font} ${compact ? s.compactSize : s.size} leading-snug mt-0.5`}
+              style={{ color: s.ink }}
+            >
+              {n.text}
+            </p>
+          </div>
+        )
+      })}
 
       {/* footer: counts as a pencil note + page corner */}
       <div className="mt-6 flex items-end justify-between">
