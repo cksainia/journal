@@ -179,10 +179,10 @@ export function JournalBook({
 /** Photo display width on the page by her chosen size (drawings stay 130). */
 const PHOTO_WIDTHS = { sm: 100, md: 160, lg: 250 } as const
 
-/** Love-note look per parent: Dad writes Sacramento on a light-blue sticky,
- *  Mom writes Dancing Script on a pink one. (Sacramento runs small → sized up.) */
+/** Love-note look per parent: Dad writes Architects Daughter on a light-blue
+ *  sticky, Mom writes Dancing Script on a pink one. */
 export const LOVE_NOTE_STYLES = {
-  dad: { bg: '#E3F2FD', border: '#A9D3F0', ink: '#1D5FA8', font: 'font-dad', size: 'text-3xl', compactSize: 'text-2xl' },
+  dad: { bg: '#E3F2FD', border: '#A9D3F0', ink: '#1D5FA8', font: 'font-dad', size: 'text-xl', compactSize: 'text-lg' },
   mom: { bg: '#FDE7F1', border: '#F2BBD3', ink: '#C2337E', font: 'font-mom', size: 'text-2xl', compactSize: 'text-xl' },
 } as const
 
