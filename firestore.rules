@@ -79,6 +79,15 @@ service cloud.firestore {
         // The child can archive (status: "archived") but NEVER hard-delete.
         allow delete: if isParent();
 
+        // Frozen pre-edit text snapshots (overwrite insurance). Immutable
+        // once written; only the parent can prune them.
+        match /revisions/{revisionId} {
+          allow read: if isFamily();
+          allow create: if isParent() || (isChild() && ownsDay());
+          allow update: if false;
+          allow delete: if isParent();
+        }
+
         match /reviews/{reviewId} {
           allow read: if isFamily();
           // The child appends reviews and may update ONLY her correction

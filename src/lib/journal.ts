@@ -289,10 +289,13 @@ export async function applySectionActions(
   const { deleteDoc, getDocs, collection: coll } = await import('firebase/firestore')
   for (const { dateKey, sectionId } of items) {
     if (action === 'delete') {
-      const reviewsSnap = await getDocs(
-        coll(db, 'journalDays', dayIdFor(dateKey), 'sections', sectionId, 'reviews'),
-      )
-      await Promise.all(reviewsSnap.docs.map((r) => deleteDoc(r.ref)))
+      // Firestore doesn't cascade — clear both subcollections first
+      for (const sub of ['reviews', 'revisions']) {
+        const snap = await getDocs(
+          coll(db, 'journalDays', dayIdFor(dateKey), 'sections', sectionId, sub),
+        )
+        await Promise.all(snap.docs.map((r) => deleteDoc(r.ref)))
+      }
       await deleteDoc(doc(sectionsRef(dateKey), sectionId))
     } else {
       await updateDoc(doc(sectionsRef(dateKey), sectionId), {
@@ -304,6 +307,52 @@ export async function applySectionActions(
   for (const dateKey of new Set(items.map((i) => i.dateKey))) {
     await retryTrackerSync(dateKey)
   }
+}
+
+/** One frozen copy of a section's text, taken BEFORE an editing session can
+ *  touch it (the "she typed a new entry over her story" insurance). */
+export interface Revision {
+  plainText: string
+  text: string
+  wordCount: number
+  at: number
+  createdAt?: unknown
+}
+
+function hashText(s: string): string {
+  let h = 5381
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0
+  return String(h)
+}
+
+export function revisionsRef(dateKey: string, sectionId: string): CollectionReference {
+  return collection(db, 'journalDays', dayIdFor(dateKey), 'sections', sectionId, 'revisions')
+}
+
+/**
+ * Snapshot the CURRENTLY STORED text of a section into its revisions
+ * subcollection. Called when an editor opens an entry that already has real
+ * content (≥ 15 words) — one small write per editing session, deduped by a
+ * content hash on the section doc, so reopening without changes writes nothing.
+ */
+export async function snapshotRevision(
+  dateKey: string,
+  section: Pick<JournalSection, 'id' | 'plainText' | 'text' | 'wordCount'> & { lastRevisionHash?: string },
+): Promise<void> {
+  const plain = section.plainText?.trim() ?? ''
+  if (countWords(plain) < 15) return // nothing worth insuring yet
+  const h = hashText(plain)
+  if (section.lastRevisionHash === h) return // this exact text is already snapshotted
+  const rev: Revision = {
+    plainText: plain,
+    text: section.text ?? plain,
+    wordCount: section.wordCount ?? countWords(plain),
+    at: Date.now(),
+  }
+  // doc id = content hash → concurrent/repeated snapshots of the same text
+  // collapse into one document instead of piling up duplicates
+  await setDoc(doc(revisionsRef(dateKey, section.id), h), { ...rev, createdAt: serverTimestamp() })
+  await updateDoc(doc(sectionsRef(dateKey), section.id), { lastRevisionHash: h })
 }
 
 const escHtml = (s: string) =>
@@ -365,15 +414,17 @@ export async function moveSections(
     await ensureDay(toDateKey)
     const destRef = doc(sectionsRef(toDateKey))
     await setDoc(destRef, { ...snap.data(), id: destRef.id, updatedAt: serverTimestamp() })
-    const reviewsSnap = await getDocs(
-      coll(db, 'journalDays', dayIdFor(dateKey), 'sections', sectionId, 'reviews'),
-    )
-    for (const r of reviewsSnap.docs) {
-      await setDoc(
-        doc(coll(db, 'journalDays', dayIdFor(toDateKey), 'sections', destRef.id, 'reviews')),
-        r.data(),
+    for (const sub of ['reviews', 'revisions']) {
+      const snap = await getDocs(
+        coll(db, 'journalDays', dayIdFor(dateKey), 'sections', sectionId, sub),
       )
-      await deleteDoc(r.ref)
+      for (const r of snap.docs) {
+        await setDoc(
+          doc(coll(db, 'journalDays', dayIdFor(toDateKey), 'sections', destRef.id, sub)),
+          r.data(),
+        )
+        await deleteDoc(r.ref)
+      }
     }
     await deleteDoc(srcRef)
     touched.add(dateKey)

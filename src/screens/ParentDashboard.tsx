@@ -34,7 +34,7 @@ import {
   type DayBundle,
 } from '@/lib/analytics'
 import { saveParentNote, watchMeta, metaRef, type JournalMeta } from '@/lib/meta'
-import { addLoveNote, dayRef, parentEditSection, removeLoveNote, type JournalDay, type LoveNote } from '@/lib/journal'
+import { addLoveNote, dayRef, parentEditSection, removeLoveNote, revisionsRef, snapshotRevision, type JournalDay, type LoveNote, type Revision } from '@/lib/journal'
 import { useDictation } from '@/lib/dictation'
 import { PhotoEditor } from '@/components/PhotoEditor'
 import { getClaudeService } from '@/services/claude'
@@ -470,6 +470,28 @@ function EntryEditForm({
   const [text, setText] = useState(section.plainText)
   const [captions, setCaptions] = useState(panels.map((p) => p.caption))
   const [busy, setBusy] = useState(false)
+  const [history, setHistory] = useState<Revision[]>([])
+
+  // snapshot the current text before this edit session, then show the history
+  useEffect(() => {
+    void (async () => {
+      try {
+        await snapshotRevision(dateKey, section)
+        const { getDocs, orderBy, query } = await import('firebase/firestore')
+        const snap = await getDocs(query(revisionsRef(dateKey, section.id), orderBy('at', 'desc')))
+        // the newest snapshot is usually the CURRENT text (taken just above) —
+        // only genuinely different, earlier versions belong in "History"
+        setHistory(
+          snap.docs
+            .map((d) => d.data() as Revision)
+            .filter((r) => r.plainText !== (section.plainText ?? '').trim()),
+        )
+      } catch (e) {
+        console.warn('revision history load failed:', (e as Error).message)
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateKey, section.id])
 
   async function save() {
     setBusy(true)
@@ -535,6 +557,33 @@ function EntryEditForm({
           Cancel
         </Button>
       </div>
+
+      {!panels.length && history.length > 0 && (
+        <div className="mt-2">
+          <p className="font-bold text-xs uppercase tracking-widest text-muted">
+            History — earlier versions of this entry
+          </p>
+          <div className="mt-1 flex flex-col gap-1 max-h-48 overflow-y-auto pr-1">
+            {history.map((rev, i) => (
+              <div key={i} className="flex items-start gap-2 border border-line rounded-xl p-2">
+                <div className="min-w-0 flex-1">
+                  <p className="text-muted text-xs">
+                    {new Date(rev.at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                    {' · '}{rev.wordCount} words
+                  </p>
+                  <p className="text-xs truncate">{rev.plainText}</p>
+                </div>
+                <Button size="sm" variant="secondary" onClick={() => setText(rev.plainText)}>
+                  Use this
+                </Button>
+              </div>
+            ))}
+          </div>
+          <p className="text-muted text-xs mt-1">
+            "Use this" fills the editor above — nothing changes until you hit Save.
+          </p>
+        </div>
+      )}
     </div>
   )
 }

@@ -4,7 +4,7 @@ import StarterKit from '@tiptap/starter-kit'
 import { Button } from '@/components/ui/button'
 import { Chip } from '@/components/ui/chip'
 import { ReviewPanel, SelfChecklist } from '@/components/ReviewPanel'
-import { saveSectionText, type JournalSection } from '@/lib/journal'
+import { saveSectionText, snapshotRevision, type JournalSection } from '@/lib/journal'
 import { countWords, countSentences } from '@/lib/counting'
 import { ActiveWpmTracker } from '@/lib/wpm'
 import { speak, stopSpeaking } from '@/lib/speech'
@@ -153,6 +153,15 @@ export function SectionEditor({
   useEffect(() => {
     reviewsUsedToday(dateKey).then(setReviewsUsed).catch(() => {})
   }, [dateKey, reviewing])
+
+  // Insurance BEFORE this session can change anything: freeze the stored text
+  // into the revisions history (no-op for short/unchanged entries).
+  useEffect(() => {
+    snapshotRevision(dateKey, section).catch((e) =>
+      console.warn('revision snapshot failed:', (e as Error).message),
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateKey, section.id])
 
   async function done() {
     clearTimeout(timer.current)
