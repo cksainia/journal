@@ -39,9 +39,11 @@ export async function importJournalPage(workerUrl: string, imageDataUrl: string)
       payload: { mediaType: m[1], imageBase64: m[2] },
     }),
   })
-  if (!res.ok) throw new Error(`worker importJournalPage → HTTP ${res.status}`)
-  const data = await res.json()
-  if (data?.error) throw new Error(`worker importJournalPage → ${data.error}`)
+  // Body first: the Worker pairs non-2xx statuses with a {error} diagnosis —
+  // short-circuiting on !res.ok hid it behind a bare "HTTP 502".
+  const data = await res.json().catch(() => null)
+  if (data && typeof data.error === 'string') throw new Error(`worker importJournalPage → ${data.error}`)
+  if (!res.ok || data == null) throw new Error(`worker importJournalPage → HTTP ${res.status}`)
   return ImportedPageSchema.parse(data)
 }
 
@@ -52,10 +54,12 @@ export function createLiveClaudeService(workerUrl: string): ClaudeService {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action, payload }),
     })
-    if (!res.ok) throw new Error(`worker ${action} → HTTP ${res.status}`)
-    const data = await res.json()
-    if (data?.error) throw new Error(`worker ${action} → ${data.error}`)
-    return schema.parse(data) // strict validation on every Claude response
+    // Body first: the Worker pairs non-2xx statuses with a {error} diagnosis —
+    // short-circuiting on !res.ok hid it behind a bare "HTTP 502".
+    const data = await res.json().catch(() => null)
+    if (data && typeof data.error === 'string') throw new Error(`worker ${action} → ${data.error}`)
+    if (!res.ok || data == null) throw new Error(`worker ${action} → HTTP ${res.status}`)
+    return schema.parse(data) // validation on every Claude response (caps by truncation/clamping)
   }
 
   return {
@@ -67,8 +71,11 @@ export function createLiveClaudeService(workerUrl: string): ClaudeService {
     generateWeeklyInsights: (input: WeeklyInsightsInput) =>
       call('generateWeeklyInsights', input, WeeklyInsightsSchema).then(sanitizeInsights),
     followUpQuestion: async (plainText: string) =>
-      call('followUpQuestion', { plainText }, z.object({ question: z.string().min(1).max(200) })).then(
-        (r) => r.question,
-      ),
+      call(
+        'followUpQuestion',
+        { plainText },
+        // Truncate a chatty question, don't reject it (same rule as reviews).
+        z.object({ question: z.string().min(1).transform((s) => s.slice(0, 200)) }),
+      ).then((r) => r.question),
   }
 }

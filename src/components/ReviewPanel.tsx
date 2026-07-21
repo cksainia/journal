@@ -9,7 +9,7 @@ import type { JournalSection } from '@/lib/journal'
 
 type Phase =
   | { kind: 'loading' }
-  | { kind: 'error' }
+  | { kind: 'error'; detail: string }
   | { kind: 'result'; review: Review; reviewId: string }
 
 const QUESTS = [
@@ -48,27 +48,30 @@ export function ReviewPanel({
     if (started.current) return
     started.current = true
     void (async () => {
+      const service = getClaudeService()
+      let review: Review
       try {
-        const service = getClaudeService()
-        const review = await service.reviewEntry({
+        review = await service.reviewEntry({
           plainText: getPlainText(),
           gradeLevel: 3,
           mode: section.type === 'guided' ? 'guided' : section.type === 'nudge' ? 'nudge' : 'free',
           sparkleWordsOffered: section.sparkleWords?.offered ?? [],
         })
-        const reviewId = await saveReview(
-          dateKey,
-          section.id,
-          review,
-          'initial',
-          service.live ? 'live' : 'mock',
-        )
-        setPhase({ kind: 'result', review, reviewId })
-        if (review.sparkle_words_used.length) celebrate({ small: true })
       } catch (e) {
         console.warn('review failed:', (e as Error).message)
-        setPhase({ kind: 'error' })
+        setPhase({ kind: 'error', detail: (e as Error).message })
+        return
       }
+      // Persistence is best-effort: a Firestore hiccup must not turn a good
+      // review into the napping screen. Outcome tracking degrades gracefully.
+      let reviewId = ''
+      try {
+        reviewId = await saveReview(dateKey, section.id, review, 'initial', service.live ? 'live' : 'mock')
+      } catch (e) {
+        console.warn('review save failed (showing the review anyway):', (e as Error).message)
+      }
+      setPhase({ kind: 'result', review, reviewId })
+      if (review.sparkle_words_used.length) celebrate({ small: true })
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -76,7 +79,8 @@ export function ReviewPanel({
   async function resolve(correctionId: string, outcome: CorrectionOutcome) {
     if (phase.kind !== 'result') return
     setOutcomes((o) => ({ ...o, [correctionId]: outcome }))
-    recordOutcome(dateKey, section.id, phase.reviewId, correctionId, outcome).catch(() => {})
+    if (phase.reviewId)
+      recordOutcome(dateKey, section.id, phase.reviewId, correctionId, outcome).catch(() => {})
   }
 
   /** Re-check = a FULL fresh review of the current text. Remaining problems
@@ -85,32 +89,36 @@ export function ReviewPanel({
   async function runRecheck() {
     if (phase.kind !== 'result') return
     setRecheck('running')
+    const service = getClaudeService()
+    let review: Review
     try {
-      const service = getClaudeService()
-      const review = await service.reviewEntry({
+      review = await service.reviewEntry({
         plainText: getPlainText(),
         gradeLevel: 3,
         mode: section.type === 'guided' ? 'guided' : section.type === 'nudge' ? 'nudge' : 'free',
         sparkleWordsOffered: section.sparkleWords?.offered ?? [],
       })
-      const counts = { spelling: review.counts.spelling, grammar: review.counts.grammar }
-      await recordRecheck(dateKey, section.id, phase.reviewId, counts)
-      const reviewId = await saveReview(
-        dateKey,
-        section.id,
-        review,
-        'recheck',
-        service.live ? 'live' : 'mock',
-      )
-      setOutcomes({})
-      setIsRecheck(true)
-      setPhase({ kind: 'result', review, reviewId })
-      if (review.corrections.length === 0) celebrate()
     } catch (e) {
       console.warn('recheck failed:', (e as Error).message)
-    } finally {
       setRecheck('idle')
+      return
     }
+    // Same rule as the initial review: persistence is best-effort.
+    let reviewId = ''
+    try {
+      if (phase.reviewId) {
+        const counts = { spelling: review.counts.spelling, grammar: review.counts.grammar }
+        await recordRecheck(dateKey, section.id, phase.reviewId, counts)
+      }
+      reviewId = await saveReview(dateKey, section.id, review, 'recheck', service.live ? 'live' : 'mock')
+    } catch (e) {
+      console.warn('recheck save failed (showing the result anyway):', (e as Error).message)
+    }
+    setOutcomes({})
+    setIsRecheck(true)
+    setPhase({ kind: 'result', review, reviewId })
+    if (review.corrections.length === 0) celebrate()
+    setRecheck('idle')
   }
 
   if (phase.kind === 'loading') {
@@ -128,6 +136,13 @@ export function ReviewPanel({
         <span className="text-4xl" aria-hidden>😴</span>
         <p className="font-extrabold mt-2">The writing checker is napping</p>
         <p className="text-muted text-sm mt-1">Try again soon — your writing is safe and saved!</p>
+        {/* Tiny parent-readable cause — the family runs this on an iPad, where
+            there is no devtools console to find the warn() in. */}
+        {phase.detail && (
+          <p className="text-[10px] text-muted/70 mt-2 break-words" aria-hidden>
+            {phase.detail.slice(0, 160)}
+          </p>
+        )}
         <Button variant="soft" size="sm" className="mt-3" onClick={onClose}>OK</Button>
       </Card>
     )
