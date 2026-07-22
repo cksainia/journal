@@ -27,10 +27,15 @@ const COACH_SYSTEM =
 
 const ACTIONS = {
   reviewEntry: {
-    maxTokens: 2500,
+    // Headroom over the worst observed review (~1.2k tokens): claude-sonnet-5's
+    // 2026-06-30 tokenizer emits ~30% more tokens, and a truncated response is
+    // a dead review. Costs nothing unless used.
+    maxTokens: 4000,
     user: (p) =>
       `Review this ${p.mode} journal entry by a grade-${p.gradeLevel} writer. ` +
       `Limit to the most important 3-5 corrections — don't overwhelm. ` +
+      `Keep it tight: encouragement 1-2 sentences; at most 3 strengths; explanationKid one short sentence; ` +
+      `confidence a decimal between 0 and 1; rubric and njsla values whole numbers. ` +
       `If the text suggests immediate harm, self-harm, abuse, or danger, add a short calm note to safetyFlags ` +
       `(the child never sees it); otherwise safetyFlags must be []. ` +
       `Sparkle words offered: ${JSON.stringify(p.sparkleWordsOffered ?? [])}. ` +
@@ -75,7 +80,7 @@ const ACTIONS = {
     },
   },
   followUpQuestion: {
-    maxTokens: 100,
+    maxTokens: 200,
     user: (p) =>
       `The child wrote: "${String(p.plainText).slice(0, 1000)}". Return ONE short encouraging follow-up ` +
       `question to keep her going (not a new assignment). Schema: {"question":str}`,
@@ -130,7 +135,7 @@ export default {
 
     let body = {}
     try { body = await request.json() } catch { /* fall through */ }
-    const action = ACTIONS[body.action]
+    const action = Object.hasOwn(ACTIONS, body.action ?? '') ? ACTIONS[body.action] : null
     if (!action) return json({ error: 'unknown action' }, 400, cors)
 
     try {
@@ -159,17 +164,41 @@ export default {
           ],
         }),
       })
-      if (!r.ok) return json({ error: `anthropic ${r.status}` }, 502, cors)
+      // Diagnosable failures from here down: both napping-checker incidents
+      // cost a debugging session because every failure surfaced as a bare
+      // "anthropic 4xx" / parse error. Name the action and the actual cause.
+      if (!r.ok) {
+        let detail = ''
+        try { detail = (await r.json())?.error?.message || '' } catch { /* keep '' */ }
+        return json(
+          { error: `${body.action}: anthropic ${r.status}${detail ? ` — ${detail.slice(0, 300)}` : ''}` },
+          502, cors,
+        )
+      }
       const msg = await r.json()
+      if (msg.stop_reason === 'max_tokens')
+        return json(
+          { error: `${body.action}: output hit max_tokens (${action.maxTokens}) — JSON truncated` },
+          502, cors,
+        )
       const text = (msg.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('')
       const jsonStart = text.indexOf('{')
       const jsonEnd = text.lastIndexOf('}')
-      if (jsonStart < 0 || jsonEnd < 0) return json({ error: 'no JSON in response' }, 502, cors)
-      let data = JSON.parse(text.slice(jsonStart, jsonEnd + 1))
+      if (jsonStart < 0 || jsonEnd < 0)
+        return json({ error: `${body.action}: no JSON in response (${text.length} chars of text)` }, 502, cors)
+      let data
+      try {
+        data = JSON.parse(text.slice(jsonStart, jsonEnd + 1))
+      } catch (e) {
+        return json(
+          { error: `${body.action}: model returned unparseable JSON — ${String(e.message || e)}` },
+          502, cors,
+        )
+      }
       if (action.post) data = action.post(data)
       return json(data, 200, cors)
     } catch (e) {
-      return json({ error: String(e.message || e) }, 502, cors)
+      return json({ error: `${body.action}: ${String(e.message || e)}` }, 502, cors)
     }
   },
 }

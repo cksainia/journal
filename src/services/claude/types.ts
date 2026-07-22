@@ -3,60 +3,110 @@ import { z } from 'zod'
 /**
  * The Claude service seam (spec §4.5, §9). ALL Claude output — mock or live —
  * is untrusted structured data: it must parse against these schemas before the
- * app touches it. Caps (≤5 corrections, ≤2 quotes, no harsh labels) live in
- * the schemas so they're enforced uniformly on every path.
+ * app touches it. Caps (≤5 corrections, ≤3 strengths, length limits, no harsh
+ * labels) live in the schemas — and they're enforced by TRUNCATION and
+ * CLAMPING, never by failing the review. Both napping-checker incidents
+ * (2026-07-05 truncation, 2026-07-21 drift) were the same failure class: model
+ * output drifted, a strict schema rejected the WHOLE review, and Aria lost the
+ * feature. A drifted-but-recognizable review must always survive; the only
+ * hard requirement is kid-facing encouragement text.
  */
 
 // Harsh labels never reach the child — but a stray "wrong" from a live model
 // must SOFTEN the one string, not sink the whole review (see sanitizeReview).
 export const HARSH_LABELS = /\b(bad|wrong|weak|failed|failure|terrible|poor)\b/i
-const kidFacing = (max = 400) => z.string().min(1).max(max)
+// Length caps by truncation: a wordy model bloats one string, never kills a review.
+const kidFacing = (max = 400) =>
+  z
+    .string()
+    .min(1)
+    .transform((s) => (s.length > max ? s.slice(0, max - 1).trimEnd() + '…' : s))
+const clampInt = (lo: number, hi: number) => (n: number) =>
+  Math.min(hi, Math.max(lo, Math.round(n)))
 
 export const CorrectionSchema = z.object({
   id: z.string(),
   type: z.enum(['spelling', 'grammar', 'punctuation', 'capitalization', 'word_choice', 'structure']),
-  category: z.string(),
+  category: z.string().catch('other'),
   original: z.string(),
   suggestion: z.string(),
   explanationKid: kidFacing(200),
-  standardsTags: z.array(z.string()).default([]),
-  confidence: z.number().min(0).max(1),
+  standardsTags: z.array(z.string()).catch([]),
+  confidence: z.number().catch(0.6).transform((n) => Math.min(1, Math.max(0, n))),
 })
+export type Correction = z.infer<typeof CorrectionSchema>
 
-const coachLevel = z.number().int().min(1).max(3)
-const njslaLevel = z.number().int().min(1).max(4)
+const coachLevel = z.number().catch(2).transform(clampInt(1, 3))
+const njslaLevel = z.number().catch(2).transform(clampInt(1, 4))
+const count = z.number().catch(0).transform((n) => Math.max(0, Math.round(n)))
 
 export const ReviewSchema = z.object({
-  schemaVersion: z.string(),
-  encouragement: kidFacing(),
-  strengths: z.array(kidFacing()).min(1).max(3),
+  schemaVersion: z.string().catch('1.0'),
+  encouragement: kidFacing(), // the ONE required field — without it there is no review to show
+  // ≤3 strengths, salvaged per item: one empty/odd entry drops that entry only.
+  strengths: z
+    .array(z.unknown())
+    .catch([])
+    .transform((a) =>
+      a
+        .flatMap((s) => {
+          const r = kidFacing().safeParse(s)
+          return r.success ? [r.data] : []
+        })
+        .slice(0, 3),
+    ),
   nextStep: z
     .object({ label: kidFacing(100), reason: kidFacing(200), example: kidFacing(200).optional() })
-    .nullable(),
-  corrections: z.array(CorrectionSchema).transform((a) => a.slice(0, 5)), // hard cap (§4.5) — enforced by truncation, never by failing the review
-  counts: z.object({
-    words: z.number().int().min(0),
-    sentences: z.number().int().min(0),
-    spelling: z.number().int().min(0),
-    grammar: z.number().int().min(0),
-  }),
-  rubric: z.object({
-    ideas: coachLevel,
-    organization: coachLevel,
-    details: coachLevel,
-    voice: coachLevel,
-    conventions: coachLevel,
-  }),
-  sparkle_words_used: z.array(z.string()).default([]),
-  voiceNotes: z.array(z.string()).default([]),
+    .nullable()
+    .catch(null),
+  // Hard cap 5 (§4.5) by truncation; a malformed correction drops ITSELF, not
+  // the review. Missing ids get positional ones so outcome tracking still works.
+  corrections: z
+    .array(z.unknown())
+    .catch([])
+    .transform((arr) =>
+      arr
+        .flatMap((raw, i) => {
+          const base = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : null
+          const withId = base
+            ? { ...base, id: typeof base.id === 'string' && base.id ? base.id : `c${i + 1}` }
+            : raw
+          const r = CorrectionSchema.safeParse(withId)
+          return r.success ? [r.data] : []
+        })
+        .slice(0, 5),
+    ),
+  counts: z
+    .object({ words: count, sentences: count, spelling: count, grammar: count })
+    .catch({ words: 0, sentences: 0, spelling: 0, grammar: 0 }),
+  rubric: z
+    .object({
+      ideas: coachLevel,
+      organization: coachLevel,
+      details: coachLevel,
+      voice: coachLevel,
+      conventions: coachLevel,
+    })
+    .catch({ ideas: 2, organization: 2, details: 2, voice: 2, conventions: 2 }),
+  sparkle_words_used: z.array(z.string()).catch([]),
+  voiceNotes: z.array(z.string()).catch([]),
   parent_metrics: z
     .object({
       njsla_written_expression_estimate: njslaLevel,
       njsla_conventions_estimate: njslaLevel,
-      rubric_justification: z.string(),
+      rubric_justification: z.string().catch(''),
     })
-    .nullable(), // null for short pieces (nudges/captions)
-  safetyFlags: z.array(z.string()).default([]),
+    .nullable()
+    .catch(null), // null for short pieces (nudges/captions)
+  // Safety channel: coerce shape rather than drop — a flag the model wrapped
+  // oddly must still reach the parent, so non-strings are stringified.
+  safetyFlags: z.unknown().optional().transform((v): string[] => {
+    if (typeof v === 'string') return v ? [v] : []
+    if (!Array.isArray(v)) return []
+    return v
+      .filter((x) => x != null && x !== '')
+      .map((x) => (typeof x === 'string' ? x : JSON.stringify(x)))
+  }),
 })
 export type Review = z.infer<typeof ReviewSchema>
 

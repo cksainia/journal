@@ -48,10 +48,67 @@ describe('ReviewSchema guardrails (spec §4.5)', () => {
     expect(clean.corrections[0].explanationKid).toContain('friend') // still points at the fix
     expect(clean.counts).toEqual(parsed.counts) // everything else untouched
   })
-  it('REJECTS malformed rubric values', () => {
-    expect(() =>
-      ReviewSchema.parse({ ...validReview, rubric: { ...validReview.rubric, ideas: 7 } }),
-    ).toThrow()
+  it('CLAMPS drifted rubric/metric numbers instead of failing the review', () => {
+    const r = ReviewSchema.parse({
+      ...validReview,
+      rubric: { ...validReview.rubric, ideas: 7, voice: 2.6 },
+      corrections: [{ ...correction('c1'), confidence: 95 }],
+      parent_metrics: {
+        njsla_written_expression_estimate: 4.4,
+        njsla_conventions_estimate: 0,
+        rubric_justification: 'Solid work.',
+      },
+    })
+    expect(r.rubric.ideas).toBe(3)
+    expect(r.rubric.voice).toBe(3)
+    expect(r.corrections[0].confidence).toBe(1)
+    expect(r.parent_metrics?.njsla_written_expression_estimate).toBe(4)
+    expect(r.parent_metrics?.njsla_conventions_estimate).toBe(1)
+  })
+  it('caps strengths at 3 by truncation — never by failing the review', () => {
+    const over = { ...validReview, strengths: ['One.', 'Two.', 'Three.', 'Four.', 'Five.'] }
+    expect(ReviewSchema.parse(over).strengths).toEqual(['One.', 'Two.', 'Three.'])
+  })
+  it('truncates overlong kid-facing text instead of failing', () => {
+    const r = ReviewSchema.parse({ ...validReview, encouragement: 'Wow! '.repeat(120) })
+    expect(r.encouragement.length).toBeLessThanOrEqual(400)
+    expect(r.encouragement.endsWith('…')).toBe(true)
+  })
+  it('drops only the malformed correction and keeps the rest', () => {
+    const r = ReviewSchema.parse({
+      ...validReview,
+      corrections: [
+        correction('c1'),
+        { type: 'grammar', original: 'we was', explanationKid: 'oops' }, // no suggestion → dropped
+        { ...correction('c3'), id: undefined }, // missing id → positional id, kept
+      ],
+    })
+    expect(r.corrections).toHaveLength(2)
+    expect(r.corrections[0].id).toBe('c1')
+    expect(r.corrections[1].suggestion).toBe('friend')
+    expect(r.corrections[1].id).toBe('c3')
+  })
+  it('survives a bare-minimum payload — encouragement is the only hard requirement', () => {
+    const r = ReviewSchema.parse({ encouragement: 'Lovely story!' })
+    expect(r.strengths).toEqual([])
+    expect(r.nextStep).toBeNull()
+    expect(r.corrections).toEqual([])
+    expect(r.counts).toEqual({ words: 0, sentences: 0, spelling: 0, grammar: 0 })
+    expect(r.rubric).toEqual({ ideas: 2, organization: 2, details: 2, voice: 2, conventions: 2 })
+    expect(r.parent_metrics).toBeNull()
+    expect(r.safetyFlags).toEqual([])
+  })
+  it('coerces oddly-shaped safety flags instead of dropping them', () => {
+    expect(ReviewSchema.parse({ ...validReview, safetyFlags: 'gentle note' }).safetyFlags).toEqual([
+      'gentle note',
+    ])
+    expect(
+      ReviewSchema.parse({ ...validReview, safetyFlags: [{ note: 'check in' }] }).safetyFlags,
+    ).toEqual(['{"note":"check in"}'])
+  })
+  it('still rejects payloads with no kid-facing encouragement', () => {
+    expect(() => ReviewSchema.parse({ ...validReview, encouragement: undefined })).toThrow()
+    expect(() => ReviewSchema.parse({ notAReview: true })).toThrow()
   })
 })
 
